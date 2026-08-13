@@ -8,6 +8,7 @@ use log::LevelFilter;
 pub fn log_init() {
     #[cfg(not(debug_assertions))]
     log_init_with_default_level(LevelFilter::Info);
+
     #[cfg(debug_assertions)]
     log_init_with_default_level(LevelFilter::Debug);
 }
@@ -24,60 +25,81 @@ pub fn log_init_with_default_level(level: LevelFilter) {
 
 #[derive(Parser, Clone, Debug)]
 #[command(author, version, about, long_about = None)]
-// #[clap(args_conflicts_with_subcommands = true)]
 pub struct Cli {
     #[command(subcommand)]
     pub subcommand: Subcommand,
-    /// WIP: source to generate ip rules
-    #[arg(short, long)]
-    source: Option<String>,
+
+    /// Data source used to generate CN IP rules.
+    #[arg(short, long, default_value = "apnic", global = true)]
+    source: String,
 }
 
 #[derive(Debug, clap::Subcommand, Clone)]
 pub enum Subcommand {
-    /// Export up and down scripts for windows, mac, linux, android, openvpn
+    /// Export route scripts for Windows, macOS, Linux, Android or OpenVPN.
     Export(ExportArgs),
-    /// Write IP rules to system route table
+
+    /// Write CN IP rules to the system route table.
     Up,
-    /// Remove IP rules from system route table
+
+    /// Remove CN IP rules from the system route table.
     Down,
 }
 
 #[derive(Debug, clap::Args, Clone)]
 pub struct ExportArgs {
-    /// The platform of script you want to export
+    /// The platform of the script to export.
     #[arg(short, long)]
     platform: Option<String>,
 }
 
-// TODO: deal with source
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     log_init();
+
     let cli = Cli::parse();
-    let source = &cli.source;
+
+    let source = chnroutes::Source::from_str(&cli.source)
+        .map_err(|err| format!("Invalid source: {err}"))?;
+
+    log::info!("Using source: {}", source.as_str());
+
     match cli.subcommand {
         Subcommand::Export(ExportArgs { platform }) => {
-            export(platform.as_deref(), source.as_deref())
+            export(platform.as_deref(), &source)?;
         }
-        Subcommand::Up => chnroutes::up(&Default::default()).await?,
+
+        Subcommand::Up => {
+            chnroutes::up(&source).await?;
+        }
+
         Subcommand::Down => {
-            chnroutes::down(&Default::default()).await?;
+            chnroutes::down(&source).await?;
         }
     }
+
     Ok(())
 }
 
-pub fn export(platform: Option<&str>, _source: Option<&str>) {
+pub fn export(
+    platform: Option<&str>,
+    source: &chnroutes::Source,
+) -> chnroutes::Result<()> {
     let target = chnroutes::Target::from_str(platform.unwrap_or_default());
+
     if let Ok(target) = target {
-        target.export_file(&Default::default()).unwrap();
+        target.export_file(source)?;
     } else {
-        eprint!("Unknown platform. platform must in ");
+        eprint!("Unknown platform. platform must be ");
+
         ["windows", "mac", "linux", "android", "openvpn"]
             .iter()
             .for_each(|x| eprint!("{}, ", x.green()));
+
         eprintln!();
-        std::process::exit(1);
+
+        return Err(chnroutes::Error::InvalidTarget);
     }
+
+    Ok(())
 }
