@@ -1,20 +1,50 @@
-name: rust release action
+name: Release
+
 on:
   push:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   release:
-    runs-on: ${{ matrix.os }}
+    name: Build and release
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          # Windows 64-bit
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+          # Linux 64-bit
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+
+          # macOS Intel
+          - os: macos-latest
+            target: x86_64-apple-darwin
+
+          # macOS Apple Silicon
+          - os: macos-latest
+            target: aarch64-apple-darwin
+
+    runs-on: ${{ matrix.os }}
+
     steps:
-      - uses: actions/checkout@v4
-      - name: release rust project
-        uses: lxl66566/rust-simple-release@main
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build and upload
+        uses: taiki-e/upload-rust-binary-action@v1
         with:
-          targets: aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl, x86_64-pc-windows-msvc, x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu, aarch64-apple-darwin, x86_64-apple-darwin
-          token: ${{ secrets.GH_TOKEN }}
+          bin: chnroutes
+          target: ${{ matrix.target }}
           features: bin
+          tar: unix
+          zip: windows
+          include: LICENSE,README.md
