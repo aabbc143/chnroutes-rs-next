@@ -2,20 +2,43 @@ name: Test
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    name: cargo test
-    runs-on: ubuntu-latest
-    env:
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: "sccache"
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall -y --no-symlinks cargo-nextest
-      - name: Setup sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.5
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo nextest run --all-features && cargo test --doc
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Cargo check
+        run: cargo check --all-features
+
+      - name: Run tests
+        run: cargo test --all-features
+
+      - name: Clippy
+        run: cargo clippy --all-features --all-targets -- -D warnings
