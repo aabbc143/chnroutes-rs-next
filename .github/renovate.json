@@ -1,4 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:base", "github>lxl66566/.github:renovate"]
+  "extends": ["config:recommended"],
+  "dependencyDashboard": true,
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "matchManagers": ["cargo"],
+      "groupName": "Rust dependencies"
+    }
+  ]
 }
