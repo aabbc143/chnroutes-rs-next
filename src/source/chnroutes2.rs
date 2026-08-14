@@ -30,7 +30,7 @@ pub fn fetch_ip_data() -> crate::error::Result<Vec<IpNet>> {
 pub fn parse_ip_data(content: &str) -> Vec<IpNet> {
     content
         .lines()
-        .filter_map(str::trim)
+        .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .filter_map(parse_cidr)
         .collect()
