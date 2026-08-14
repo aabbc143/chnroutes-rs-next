@@ -74,10 +74,7 @@ fn load_builtin_data() -> crate::error::Result<Vec<IpNet>> {
 /// Malformed records are ignored instead of causing the whole process to
 /// panic.
 pub fn parse_ip_data(content: &str) -> Vec<IpNet> {
-    content
-        .lines()
-        .filter_map(parse_record)
-        .collect()
+    content.lines().filter_map(parse_record).collect()
 }
 
 fn parse_record(line: &str) -> Option<IpNet> {
