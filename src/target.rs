@@ -196,14 +196,23 @@ route delete 192.168.0.0/16 "${OLDGW}"
 
 fn export_windows(ips: Vec<IpNet>) -> (String, Option<String>) {
     let mut up = r#"@echo off
+setlocal
+
 for /F "tokens=3" %%* in ('route print ^| findstr "\<0.0.0.0\>"') do set "gw=%%*"
 echo gw=%gw%
+
+if "%gw%"=="" (
+    echo Failed to determine default gateway.
+    exit /b 1
+)
+
 ipconfig /flushdns
 
-"#
+"# 
     .to_string();
 
     let mut down = r#"@echo off
+setlocal
 
 "#
     .to_string();
@@ -212,7 +221,7 @@ ipconfig /flushdns
         ips.iter()
             .map(|ip| {
                 format!(
-                    r#"route add {} mask {} {} metric 1"#,
+                    r#"route -p add {} mask {} {} metric 1"#,
                     ip.addr(),
                     ip.netmask(),
                     "%gw%",
