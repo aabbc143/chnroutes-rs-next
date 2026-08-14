@@ -1,26 +1,25 @@
 [package]
-authors     = ["lxl66566 <lxl66566@gmail.com>"]
+authors     = ["aabbc143"]
 categories  = ["network-programming"]
-description = "Rust version of chnroutes (with more features), to bypass the VPN accessing CN IPs."
+description = "Rust version of chnroutes, with multiple CN IP data sources."
 edition     = "2021"
-homepage    = "https://github.com/lxl66566/chnroutes-rs"
+homepage    = "https://github.com/aabbc143/chnroutes-rs-next"
 keywords    = ["chnroutes", "VPN", "bypass", "route"]
 license     = "MIT"
 name        = "chnroutes"
 readme      = "./README.md"
-repository  = "https://github.com/lxl66566/chnroutes-rs"
-version     = "0.1.3"
+repository  = "https://github.com/aabbc143/chnroutes-rs-next"
+version     = "0.2.0"
 
 [dependencies]
 clap              = { version = "4.5.23", features = ["derive"], optional = true }
 colored           = { version = "2.1.0", optional = true }
-enum-tools        = "0.5.3"
 futures-util      = "0.3.31"
 ipnet             = "2.9.0"
 log               = "0.4.22"
 net-route         = "0.4.5"
-netdev            = "0.31.0"
-once-fn           = "0.2.0"
+netdev             = "0.31.0"
+once-fn            = "0.2.0"
 pretty_env_logger = { version = "0.5.0", optional = true }
 thiserror         = "2.0.7"
 tokio             = { version = "1.42.0", features = ["rt", "macros", "rt-multi-thread"] }
@@ -30,7 +29,6 @@ zstd              = "0.13.2"
 default-features = false
 features         = ["blocking", "rustls-tls"]
 version          = "0.12.9"
-
 
 [profile.release]
 lto       = true
