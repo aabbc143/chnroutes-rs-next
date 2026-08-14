@@ -1,4 +1,3 @@
-use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -16,10 +15,7 @@ pub fn fetch_ip_data() -> crate::error::Result<Vec<IpNet>> {
         .timeout(HTTP_TIMEOUT)
         .build()?;
 
-    let response = client
-        .get(CHNROUTES2_URL)
-        .send()?
-        .error_for_status()?;
+    let response = client.get(CHNROUTES2_URL).send()?.error_for_status()?;
 
     let data = response.text()?;
 
@@ -71,18 +67,9 @@ invalid
         let results = parse_ip_data(content);
 
         assert_eq!(results.len(), 3);
-        assert_eq!(
-            results[0],
-            IpNet::from_str("1.1.8.0/24").unwrap()
-        );
-        assert_eq!(
-            results[1],
-            IpNet::from_str("1.12.0.0/14").unwrap()
-        );
-        assert_eq!(
-            results[2],
-            IpNet::from_str("1.24.0.0/13").unwrap()
-        );
+        assert_eq!(results[0], IpNet::from_str("1.1.8.0/24").unwrap());
+        assert_eq!(results[1], IpNet::from_str("1.12.0.0/14").unwrap());
+        assert_eq!(results[2], IpNet::from_str("1.24.0.0/13").unwrap());
     }
 
     #[test]
