@@ -59,8 +59,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let cli = Cli::parse();
 
-    let source = chnroutes::Source::from_str(&cli.source)
-        .map_err(|err| format!("Invalid source: {err}"))?;
+    let source =
+    chnroutes::Source::from_str(&cli.source).map_err(|err| format!("Invalid source: {err}"))?;
 
     log::info!("Using source: {}", source.as_str());
 
@@ -81,10 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-pub fn export(
-    platform: Option<&str>,
-    source: &chnroutes::Source,
-) -> chnroutes::Result<()> {
+pub fn export(platform: Option<&str>, source: &chnroutes::Source) -> chnroutes::Result<()> {
     let target = chnroutes::Target::from_str(platform.unwrap_or_default());
 
     if let Ok(target) = target {
