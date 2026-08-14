@@ -21,7 +21,10 @@ impl Target {
     ///
     /// OpenVPN => Append the content to openvpn config file.
     /// Others => Return two Strings representing the upscript and downscript.
-    pub fn export_str(&self, source: &Source) -> crate::error::Result<(String, Option<String>)> {
+    pub fn export_str(
+        &self,
+        source: &Source,
+    ) -> crate::error::Result<(String, Option<String>)> {
         let source_ips = source.get_cn_ips()?;
         match self {
             Self::OpenVPN(metric) => Ok((export_openvpn(source_ips, metric), None)),
@@ -59,6 +62,7 @@ impl Target {
 
 impl FromStr for Target {
     type Err = Error;
+
     fn from_str(s: &str) -> Result<Self> {
         match s {
             "openvpn" => Ok(Self::OpenVPN(1)),
@@ -101,6 +105,7 @@ fi
 
 "#
     .to_string();
+
     let mut down = r#"#!/bin/bash
 export PATH="/bin:/sbin:/usr/sbin:/usr/bin"
 
@@ -111,24 +116,20 @@ OLDGW=`cat /tmp/vpn_oldgw`
 
     up.push_str(
         ips.iter()
-            .map(|ip| {
-                format!(
-                    "route add -net {} netmask {} gw $OLDGW",
-                    ip.addr(),
-                    ip.netmask(),
-                )
-            })
+            .map(|ip| format!("ip route add {} via $OLDGW", ip))
             .collect::<Vec<String>>()
             .join("\n")
             .as_str(),
     );
+
     down.push_str(
         ips.iter()
-            .map(|ip| format!("route del -net {} netmask {}", ip.addr(), ip.netmask(),))
+            .map(|ip| format!("ip route del {}", ip))
             .collect::<Vec<String>>()
             .join("\n")
             .as_str(),
     );
+
     (up, Some(down))
 }
 
@@ -147,7 +148,8 @@ route add 10.0.0.0/8 "${OLDGW}"
 route add 172.16.0.0/12 "${OLDGW}"
 route add 192.168.0.0/16 "${OLDGW}"
 
-"#.to_string();
+"#
+    .to_string();
 
     let mut down = r#"#!/bin/sh
 export PATH="/bin:/sbin:/usr/sbin:/usr/bin"
@@ -172,6 +174,7 @@ route delete 192.168.0.0/16 "${OLDGW}"
             .join("\n")
             .as_str(),
     );
+
     down.push_str(
         ips.iter()
             .map(|ip| format!(r#"route delete {} ${{OLDGW}}"#, ip))
@@ -179,6 +182,7 @@ route delete 192.168.0.0/16 "${OLDGW}"
             .join("\n")
             .as_str(),
     );
+
     (up, Some(down))
 }
 
@@ -190,6 +194,7 @@ ipconfig /flushdns
 
 "#
     .to_string();
+
     let mut down = r#"@echo off
 
 "#
@@ -209,6 +214,7 @@ ipconfig /flushdns
             .join("\n")
             .as_str(),
     );
+
     down.push_str(
         ips.iter()
             .map(|ip| format!(r#"route delete {}"#, ip.addr()))
@@ -216,6 +222,7 @@ ipconfig /flushdns
             .join("\n")
             .as_str(),
     );
+
     (up, Some(down))
 }
 
@@ -230,6 +237,7 @@ OLDGW=`netstat -rn | grep ^0\.0\.0\.0 | awk '{print $2}'`
 
 "#
     .to_string();
+
     let mut down = r#"#!/bin/sh
 alias route='/system/xbin/busybox route'
     
@@ -249,6 +257,7 @@ alias route='/system/xbin/busybox route'
             .join("\n")
             .as_str(),
     );
+
     down.push_str(
         ips.iter()
             .map(|ip| format!(r#"route del -net {} netmask {}"#, ip.addr(), ip.netmask()))
@@ -256,6 +265,7 @@ alias route='/system/xbin/busybox route'
             .join("\n")
             .as_str(),
     );
+
     (up, Some(down))
 }
 
