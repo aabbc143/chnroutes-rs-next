@@ -82,4 +82,13 @@ invalid
         assert_eq!(parse_cidr("2400:da00::/32"), None);
         assert_eq!(parse_cidr("not-a-cidr"), None);
     }
+
+    #[test]
+    #[ignore = "requires network access"]
+    fn test_fetch_ip_data() {
+        let results = fetch_ip_data().unwrap();
+
+        assert!(!results.is_empty());
+        assert!(results.iter().all(|network| network.is_ipv4()));
+    }
 }
