@@ -21,10 +21,7 @@ impl Target {
     ///
     /// OpenVPN => Append the content to openvpn config file.
     /// Others => Return two Strings representing the upscript and downscript.
-    pub fn export_str(
-        &self,
-        source: &Source,
-    ) -> crate::error::Result<(String, Option<String>)> {
+    pub fn export_str(&self, source: &Source) -> crate::error::Result<(String, Option<String>)> {
         let source_ips = source.get_cn_ips()?;
         match self {
             Self::OpenVPN(metric) => Ok((export_openvpn(source_ips, metric), None)),
