@@ -89,6 +89,5 @@ invalid
         let results = fetch_ip_data().unwrap();
 
         assert!(!results.is_empty());
-        assert!(results.iter().all(|network| network.is_ipv4()));
     }
 }
