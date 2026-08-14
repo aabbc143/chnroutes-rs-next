@@ -90,14 +90,20 @@ fn export_linux(ips: Vec<IpNet>) -> (String, Option<String>) {
     let mut up = r#"#!/bin/bash
 export PATH="/bin:/sbin:/usr/sbin:/usr/bin"
 
-OLDGW=`ip route show | grep '^default' | sed -e 's/default via \([^ ]*\).*/\1/'`
-
-if [ $OLDGW == '' ]; then
+OLDROUTE=$(ip route show default | head -n 1)
+if [ -z "$OLDROUTE" ]; then
     exit 0
 fi
 
-if [ ! -e /tmp/vpn_oldgw ]; then
-    echo $OLDGW > /tmp/vpn_oldgw
+OLDGW=$(echo "$OLDROUTE" | awk '{for (i=1; i<=NF; i++) if ($i == "via") {print $(i+1); exit}}')
+OLDDEV=$(echo "$OLDROUTE" | awk '{for (i=1; i<=NF; i++) if ($i == "dev") {print $(i+1); exit}}')
+
+if [ -z "$OLDGW" ] || [ -z "$OLDDEV" ]; then
+    exit 0
+fi
+
+if [ ! -e /tmp/vpn_oldroute ]; then
+    echo "$OLDROUTE" > /tmp/vpn_oldroute
 fi
 
 "#
@@ -106,14 +112,18 @@ fi
     let mut down = r#"#!/bin/bash
 export PATH="/bin:/sbin:/usr/sbin:/usr/bin"
 
-OLDGW=`cat /tmp/vpn_oldgw`
+if [ ! -e /tmp/vpn_oldroute ]; then
+    exit 0
+fi
+
+OLDROUTE=$(cat /tmp/vpn_oldroute)
 
 "#
     .to_string();
 
     up.push_str(
         ips.iter()
-            .map(|ip| format!("ip route add {} via $OLDGW", ip))
+            .map(|ip| format!("ip route add {} via $OLDGW dev $OLDDEV", ip))
             .collect::<Vec<String>>()
             .join("\n")
             .as_str(),
@@ -127,9 +137,10 @@ OLDGW=`cat /tmp/vpn_oldgw`
             .as_str(),
     );
 
+    down.push_str("\n\nip route replace \"$OLDROUTE\"\n");
+
     (up, Some(down))
 }
-
 fn export_mac(ips: Vec<IpNet>) -> (String, Option<String>) {
     let mut up = r#"export PATH="/bin:/sbin:/usr/sbin:/usr/bin"
     
