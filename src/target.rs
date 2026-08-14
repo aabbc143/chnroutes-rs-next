@@ -264,11 +264,12 @@ mod tests {
     use std::path::Path;
 
     use super::*;
-}
-   #[test]
-fn test_export_file() {
-    Target::Windows.export_file(&Source::Test).unwrap();
-    let up = Path::new("up.bat");
-    let down = Path::new("down.bat");
-    assert!(up.exists() && down.exists());
+
+    #[test]
+    fn test_export_file() {
+        Target::Windows.export_file(&Source::Test).unwrap();
+        let up = Path::new("up.bat");
+        let down = Path::new("down.bat");
+        assert!(up.exists() && down.exists());
+    }
 }
