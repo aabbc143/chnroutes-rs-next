@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let cli = Cli::parse();
 
     let source =
-    chnroutes::Source::from_str(&cli.source).map_err(|err| format!("Invalid source: {err}"))?;
+        chnroutes::Source::from_str(&cli.source).map_err(|err| format!("Invalid source: {err}"))?;
 
     log::info!("Using source: {}", source.as_str());
 
