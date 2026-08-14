@@ -264,7 +264,7 @@ mod tests {
     use std::path::Path;
 
     use super::*;
-
+}
    #[test]
 fn test_export_file() {
     Target::Windows.export_file(&Source::Test).unwrap();
