@@ -208,7 +208,7 @@ if "%gw%"=="" (
 
 ipconfig /flushdns
 
-"# 
+"#
     .to_string();
 
     let mut down = r#"@echo off
