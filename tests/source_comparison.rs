@@ -29,12 +29,10 @@ fn compare_sources() {
     let apnic_addresses = total_addresses(&apnic_intervals);
     let chnroutes2_addresses = total_addresses(&chnroutes2_intervals);
 
-    let intersection_addresses =
-        intersection_size(&apnic_intervals, &chnroutes2_intervals);
+    let intersection_addresses = intersection_size(&apnic_intervals, &chnroutes2_intervals);
 
     let apnic_only_addresses = apnic_addresses - intersection_addresses;
-    let chnroutes2_only_addresses =
-        chnroutes2_addresses - intersection_addresses;
+    let chnroutes2_only_addresses = chnroutes2_addresses - intersection_addresses;
 
     println!("=== Source comparison ===");
     println!();
@@ -56,10 +54,7 @@ fn compare_sources() {
     println!("  APNIC addresses:              {}", apnic_addresses);
     println!("  chnroutes2 addresses:         {}", chnroutes2_addresses);
     println!("  Intersection:                 {}", intersection_addresses);
-    println!(
-        "  APNIC only addresses:         {}",
-        apnic_only_addresses
-    );
+    println!("  APNIC only addresses:         {}", apnic_only_addresses);
     println!(
         "  chnroutes2 only addresses:    {}",
         chnroutes2_only_addresses
