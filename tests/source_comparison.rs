@@ -10,7 +10,8 @@ type Interval = (u32, u32);
 #[ignore = "requires network access"]
 fn compare_sources() {
     let apnic_data = apnic::fetch_ip_data().expect("failed to fetch APNIC data");
-    let chnroutes2_data = chnroutes2::fetch_ip_data().expect("failed to fetch chnroutes2 data");
+    let chnroutes2_data =
+        chnroutes2::fetch_ip_data().expect("failed to fetch chnroutes2 data");
 
     let apnic_set: HashSet<_> = apnic_data
         .into_iter()
@@ -29,10 +30,12 @@ fn compare_sources() {
     let apnic_addresses = total_addresses(&apnic_intervals);
     let chnroutes2_addresses = total_addresses(&chnroutes2_intervals);
 
-    let intersection_addresses = intersection_size(&apnic_intervals, &chnroutes2_intervals);
+    let intersection_addresses =
+        intersection_size(&apnic_intervals, &chnroutes2_intervals);
 
     let apnic_only_addresses = apnic_addresses - intersection_addresses;
-    let chnroutes2_only_addresses = chnroutes2_addresses - intersection_addresses;
+    let chnroutes2_only_addresses =
+        chnroutes2_addresses - intersection_addresses;
 
     println!("=== Source comparison ===");
     println!();
@@ -44,7 +47,10 @@ fn compare_sources() {
     println!("  chnroutes2 only:   {}", chnroutes2_only);
     println!();
     println!("Normalized address space:");
-    println!("  APNIC normalized ranges:      {}", apnic_intervals.len());
+    println!(
+        "  APNIC normalized ranges:      {}",
+        apnic_intervals.len()
+    );
     println!(
         "  chnroutes2 normalized ranges: {}",
         chnroutes2_intervals.len()
@@ -52,9 +58,18 @@ fn compare_sources() {
     println!();
     println!("IPv4 address coverage:");
     println!("  APNIC addresses:              {}", apnic_addresses);
-    println!("  chnroutes2 addresses:         {}", chnroutes2_addresses);
-    println!("  Intersection:                 {}", intersection_addresses);
-    println!("  APNIC only addresses:         {}", apnic_only_addresses);
+    println!(
+        "  chnroutes2 addresses:         {}",
+        chnroutes2_addresses
+    );
+    println!(
+        "  Intersection:                 {}",
+        intersection_addresses
+    );
+    println!(
+        "  APNIC only addresses:         {}",
+        apnic_only_addresses
+    );
     println!(
         "  chnroutes2 only addresses:    {}",
         chnroutes2_only_addresses
@@ -68,6 +83,54 @@ fn compare_sources() {
         "  chnroutes2 coverage shared:   {:.4}%",
         percentage(intersection_addresses, chnroutes2_addresses)
     );
+
+    println!();
+    println!("=== chnroutes2 networks not fully covered by APNIC ===");
+
+    let mut uncovered = chnroutes2_set
+        .iter()
+        .filter_map(|network| match network {
+            IpNet::V4(network) => {
+                let start = ipv4_to_u32(network.network());
+                let end = ipv4_to_u32(network.broadcast());
+
+                if interval_fully_covered(&(start, end), &apnic_intervals) {
+                    None
+                } else {
+                    Some((start, end, network))
+                }
+            }
+            IpNet::V6(_) => None,
+        })
+        .collect::<Vec<_>>();
+
+    uncovered.sort_unstable_by_key(|item| item.0);
+
+    let fully_uncovered_count = uncovered
+        .iter()
+        .filter(|(start, end, _)| {
+            !interval_has_overlap(&(*start, *end), &apnic_intervals)
+        })
+        .count();
+
+    let partially_overlapping_count =
+        uncovered.len() - fully_uncovered_count;
+
+    println!("  Networks not fully covered:   {}", uncovered.len());
+    println!(
+        "  Fully outside APNIC:          {}",
+        fully_uncovered_count
+    );
+    println!(
+        "  Partially overlapping APNIC:  {}",
+        partially_overlapping_count
+    );
+    println!();
+    println!("  First 100 affected networks:");
+
+    for (_, _, network) in uncovered.iter().take(100) {
+        println!("    {}", network);
+    }
 }
 
 fn normalize(networks: &HashSet<IpNet>) -> Vec<Interval> {
@@ -103,6 +166,22 @@ fn normalize(networks: &HashSet<IpNet>) -> Vec<Interval> {
     }
 
     merged
+}
+
+fn interval_fully_covered(target: &Interval, ranges: &[Interval]) -> bool {
+    let (start, end) = *target;
+
+    ranges.iter().any(|(range_start, range_end)| {
+        *range_start <= start && *range_end >= end
+    })
+}
+
+fn interval_has_overlap(target: &Interval, ranges: &[Interval]) -> bool {
+    let (start, end) = *target;
+
+    ranges.iter().any(|(range_start, range_end)| {
+        *range_start <= end && *range_end >= start
+    })
 }
 
 fn intersection_size(left: &[Interval], right: &[Interval]) -> u64 {
