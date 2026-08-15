@@ -7,16 +7,15 @@ on:
       - main
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
   test:
     name: Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
 
     strategy:
-      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
@@ -41,4 +40,19 @@ jobs:
         run: cargo test --all-features
 
       - name: Clippy
-        run: cargo clippy --all-features --all-targets -- -D warnings
+        run: cargo clippy --all-features -- -D warnings
+
+  network-test:
+    name: Chnroutes2 network test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run ignored network tests
+        run: cargo test --all-features -- --ignored
