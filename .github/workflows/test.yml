@@ -53,3 +53,17 @@ jobs:
 
       - name: Run chnroutes2 network test
         run: cargo test --all-features source::chnroutes2::tests::test_fetch_ip_data -- --ignored
+    source-comparison:
+    name: Compare APNIC and chnroutes2
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run source comparison
+        run: cargo test --test source_comparison -- --ignored --nocapture
