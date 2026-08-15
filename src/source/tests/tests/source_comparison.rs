@@ -45,15 +45,24 @@ fn compare_sources() {
     println!("  chnroutes2 only:   {}", chnroutes2_only);
     println!();
     println!("Normalized address space:");
-    println!("  APNIC normalized ranges:      {}", apnic_intervals.len());
-    println!("  chnroutes2 normalized ranges: {}", chnroutes2_intervals.len());
+    println!(
+        "  APNIC normalized ranges:      {}",
+        apnic_intervals.len()
+    );
+    println!(
+        "  chnroutes2 normalized ranges: {}",
+        chnroutes2_intervals.len()
+    );
     println!();
     println!("IPv4 address coverage:");
     println!("  APNIC addresses:              {}", apnic_addresses);
     println!("  chnroutes2 addresses:         {}", chnroutes2_addresses);
     println!("  Intersection:                 {}", intersection_addresses);
     println!("  APNIC only addresses:         {}", apnic_only_addresses);
-    println!("  chnroutes2 only addresses:    {}", chnroutes2_only_addresses);
+    println!(
+        "  chnroutes2 only addresses:    {}",
+        chnroutes2_only_addresses
+    );
     println!();
     println!(
         "  APNIC coverage shared:        {:.4}%",
@@ -72,6 +81,7 @@ fn normalize(networks: &HashSet<IpNet>) -> Vec<Interval> {
             IpNet::V4(network) => {
                 let start = ipv4_to_u32(network.network());
                 let end = ipv4_to_u32(network.broadcast());
+
                 Some((start, end))
             }
             IpNet::V6(_) => None,
@@ -88,6 +98,7 @@ fn normalize(networks: &HashSet<IpNet>) -> Vec<Interval> {
                 if end > *current_end {
                     *current_end = end;
                 }
+
                 continue;
             }
         }
