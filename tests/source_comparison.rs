@@ -6,6 +6,12 @@ use ipnet::IpNet;
 
 type Interval = (u32, u32);
 
+#[derive(Default)]
+struct Slash8Stats {
+    networks: usize,
+    addresses: u64,
+}
+
 #[test]
 #[ignore = "requires network access"]
 fn compare_sources() {
@@ -84,53 +90,17 @@ fn compare_sources() {
         percentage(intersection_addresses, chnroutes2_addresses)
     );
 
+    let uncovered = subtract_intervals(&chnroutes2_intervals, &apnic_intervals);
+
     println!();
-    println!("=== chnroutes2 networks not fully covered by APNIC ===");
-
-    let mut uncovered = chnroutes2_set
-        .iter()
-        .filter_map(|network| match network {
-            IpNet::V4(network) => {
-                let start = ipv4_to_u32(network.network());
-                let end = ipv4_to_u32(network.broadcast());
-
-                if interval_fully_covered(&(start, end), &apnic_intervals) {
-                    None
-                } else {
-                    Some((start, end, network))
-                }
-            }
-            IpNet::V6(_) => None,
-        })
-        .collect::<Vec<_>>();
-
-    uncovered.sort_unstable_by_key(|item| item.0);
-
-    let fully_uncovered_count = uncovered
-        .iter()
-        .filter(|(start, end, _)| {
-            !interval_has_overlap(&(*start, *end), &apnic_intervals)
-        })
-        .count();
-
-    let partially_overlapping_count =
-        uncovered.len() - fully_uncovered_count;
-
-    println!("  Networks not fully covered:   {}", uncovered.len());
+    println!("=== chnroutes2 address space outside APNIC ===");
+    println!("  Uncovered ranges:             {}", uncovered.len());
     println!(
-        "  Fully outside APNIC:          {}",
-        fully_uncovered_count
+        "  Uncovered addresses:          {}",
+        total_addresses(&uncovered)
     );
-    println!(
-        "  Partially overlapping APNIC:  {}",
-        partially_overlapping_count
-    );
-    println!();
-    println!("  First 100 affected networks:");
 
-    for (_, _, network) in uncovered.iter().take(100) {
-        println!("    {}", network);
-    }
+    print_slash8_stats(&uncovered);
 }
 
 fn normalize(networks: &HashSet<IpNet>) -> Vec<Interval> {
@@ -168,20 +138,110 @@ fn normalize(networks: &HashSet<IpNet>) -> Vec<Interval> {
     merged
 }
 
-fn interval_fully_covered(target: &Interval, ranges: &[Interval]) -> bool {
-    let (start, end) = *target;
+fn subtract_intervals(
+    source: &[Interval],
+    mask: &[Interval],
+) -> Vec<Interval> {
+    let mut result = Vec::new();
+    let mut mask_index = 0;
 
-    ranges.iter().any(|(range_start, range_end)| {
-        *range_start <= start && *range_end >= end
-    })
+    for &(source_start, source_end) in source {
+        let mut current = source_start;
+
+        while mask_index < mask.len() && mask[mask_index].1 < current {
+            mask_index += 1;
+        }
+
+        let mut index = mask_index;
+
+        while index < mask.len() {
+            let (mask_start, mask_end) = mask[index];
+
+            if mask_start > source_end {
+                break;
+            }
+
+            if mask_end < current {
+                index += 1;
+                continue;
+            }
+
+            if mask_start > current {
+                let uncovered_end = mask_start - 1;
+
+                if uncovered_end >= current {
+                    result.push((current, uncovered_end));
+                }
+            }
+
+            if mask_end >= source_end {
+                current = source_end.saturating_add(1);
+                break;
+            }
+
+            current = mask_end + 1;
+            index += 1;
+        }
+
+        if current <= source_end {
+            result.push((current, source_end));
+        }
+
+        mask_index = index.min(mask.len());
+    }
+
+    result
 }
 
-fn interval_has_overlap(target: &Interval, ranges: &[Interval]) -> bool {
-    let (start, end) = *target;
+fn print_slash8_stats(intervals: &[Interval]) {
+    let mut stats: Vec<Slash8Stats> =
+        (0..=255).map(|_| Slash8Stats::default()).collect();
 
-    ranges.iter().any(|(range_start, range_end)| {
-        *range_start <= end && *range_end >= start
-    })
+    for &(start, end) in intervals {
+        let mut current = start;
+
+        loop {
+            let first_octet = (current >> 24) as usize;
+
+            let octet_end = if first_octet == 255 {
+                u32::MAX
+            } else {
+                (((first_octet + 1) as u32) << 24) - 1
+            };
+
+            let part_end = end.min(octet_end);
+
+            stats[first_octet].networks += 1;
+            stats[first_octet].addresses +=
+                u64::from(part_end) - u64::from(current) + 1;
+
+            if part_end >= end {
+                break;
+            }
+
+            current = part_end + 1;
+        }
+    }
+
+    println!();
+    println!("=== chnroutes2 extra address space by /8 ===");
+    println!(
+        "{:<6} {:>12} {:>18}",
+        "/8", "Ranges", "Addresses"
+    );
+
+    for (octet, stat) in stats.iter().enumerate() {
+        if stat.addresses == 0 {
+            continue;
+        }
+
+        println!(
+            "{:<6} {:>12} {:>18}",
+            format!("{octet}.0.0.0/8"),
+            stat.networks,
+            stat.addresses
+        );
+    }
 }
 
 fn intersection_size(left: &[Interval], right: &[Interval]) -> u64 {
