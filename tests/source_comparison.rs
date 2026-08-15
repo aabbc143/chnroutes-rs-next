@@ -101,7 +101,7 @@ fn normalize(networks: &HashSet<IpNet>) -> Vec<Interval> {
 
     intervals.sort_unstable_by_key(|interval| interval.0);
 
-    let mut merged = Vec::with_capacity(intervals.len());
+    let mut merged: Vec<Interval> = Vec::with_capacity(intervals.len());
 
     for (start, end) in intervals {
         if let Some((_, current_end)) = merged.last_mut() {
