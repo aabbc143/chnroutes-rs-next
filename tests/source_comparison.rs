@@ -10,8 +10,7 @@ type Interval = (u32, u32);
 #[ignore = "requires network access"]
 fn compare_sources() {
     let apnic_data = apnic::fetch_ip_data().expect("failed to fetch APNIC data");
-    let chnroutes2_data =
-        chnroutes2::fetch_ip_data().expect("failed to fetch chnroutes2 data");
+    let chnroutes2_data = chnroutes2::fetch_ip_data().expect("failed to fetch chnroutes2 data");
 
     let apnic_set: HashSet<_> = apnic_data
         .into_iter()
@@ -47,10 +46,7 @@ fn compare_sources() {
     println!("  chnroutes2 only:   {}", chnroutes2_only);
     println!();
     println!("Normalized address space:");
-    println!(
-        "  APNIC normalized ranges:      {}",
-        apnic_intervals.len()
-    );
+    println!("  APNIC normalized ranges:      {}", apnic_intervals.len());
     println!(
         "  chnroutes2 normalized ranges: {}",
         chnroutes2_intervals.len()
@@ -58,14 +54,8 @@ fn compare_sources() {
     println!();
     println!("IPv4 address coverage:");
     println!("  APNIC addresses:              {}", apnic_addresses);
-    println!(
-        "  chnroutes2 addresses:         {}",
-        chnroutes2_addresses
-    );
-    println!(
-        "  Intersection:                 {}",
-        intersection_addresses
-    );
+    println!("  chnroutes2 addresses:         {}", chnroutes2_addresses);
+    println!("  Intersection:                 {}", intersection_addresses);
     println!(
         "  APNIC only addresses:         {}",
         apnic_only_addresses
