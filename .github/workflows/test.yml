@@ -39,7 +39,7 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-features -- -D warnings
 
-  network-test:
+    network-test:
     name: Chnroutes2 network test
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
@@ -51,5 +51,5 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Run ignored network tests
-        run: cargo test --all-features -- --ignored
+      - name: Run chnroutes2 network test
+        run: cargo test --all-features source::chnroutes2::tests::test_fetch_ip_data -- --ignored
