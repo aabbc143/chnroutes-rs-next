@@ -66,8 +66,7 @@ fn test_source_truth_cases() {
     ];
 
     for case in cases {
-        let network =
-            IpNet::from_str(case.cidr).expect("truth case must contain a valid CIDR");
+        let network = IpNet::from_str(case.cidr).expect("truth case must contain a valid CIDR");
 
         assert!(
             network.is_ipv4(),
@@ -75,22 +74,12 @@ fn test_source_truth_cases() {
             case.cidr
         );
 
-        println!(
-            "{:<20} {:?} - {}",
-            case.cidr, case.truth, case.reason
-        );
+        println!("{:<20} {:?} - {}", case.cidr, case.truth, case.reason);
     }
 }
 
 #[test]
 fn test_truth_category_values() {
-    assert_ne!(
-        Truth::CnMainlandCloud,
-        Truth::Overseas
-    );
-
-    assert_ne!(
-        Truth::CnMainlandIsp,
-        Truth::HongKong
-    );
+    assert_ne!(Truth::CnMainlandCloud, Truth::Overseas);
+    assert_ne!(Truth::CnMainlandIsp, Truth::HongKong);
 }
