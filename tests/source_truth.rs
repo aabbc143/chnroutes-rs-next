@@ -69,7 +69,7 @@ fn test_source_truth_cases() {
         let network = IpNet::from_str(case.cidr).expect("truth case must contain a valid CIDR");
 
         assert!(
-            network.is_ipv4(),
+            matches!(network, IpNet::V4(_)),
             "truth case must contain an IPv4 network: {}",
             case.cidr
         );
