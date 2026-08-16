@@ -243,40 +243,45 @@ fn print_top_chnroutes2_only(
     apnic_intervals: &[Interval],
     limit: usize,
 ) {
-    let mut ranges = chnroutes2_set
-        .iter()
-        .filter_map(|network| match network {
-            IpNet::V4(network) => {
-                let start = ipv4_to_u32(network.network());
-                let end = ipv4_to_u32(network.broadcast());
+    let mut ranges = Vec::new();
 
-                if interval_fully_covered(&(start, end), apnic_intervals) {
-                    None
-                } else {
-                    Some((network, u64::from(end) - u64::from(start) + 1))
-                }
-            }
-            IpNet::V6(_) => None,
-        })
-        .collect::<Vec<_>>();
+    for network in chnroutes2_set {
+        let network_v4 = match network {
+            IpNet::V4(network) => network,
+            IpNet::V6(_) => continue,
+        };
+
+        let start = ipv4_to_u32(network_v4.network());
+        let end = ipv4_to_u32(network_v4.broadcast());
+
+        let uncovered = subtract_single_interval((start, end), apnic_intervals);
+        let uncovered_addresses = total_addresses(&uncovered);
+
+        if uncovered_addresses > 0 {
+            ranges.push((network, uncovered_addresses));
+        }
+    }
 
     ranges.sort_unstable_by(|a, b| b.1.cmp(&a.1));
 
     println!();
-    println!("=== Top chnroutes2-only CIDRs by address count ===");
-    println!("{:<20} {:>12}", "CIDR", "Addresses");
+    println!("=== Top chnroutes2 prefixes by actual uncovered addresses ===");
+    println!("{:<20} {:>18}", "CIDR", "Uncovered");
 
-    for (network, addresses) in ranges.into_iter().take(limit) {
-        println!("{:<20} {:>12}", network, addresses);
+    for (network, uncovered_addresses) in ranges.into_iter().take(limit) {
+        println!(
+            "{:<20} {:>18}",
+            network,
+            uncovered_addresses
+        );
     }
 }
 
-fn interval_fully_covered(target: &Interval, ranges: &[Interval]) -> bool {
-    let (start, end) = *target;
-
-    ranges.iter().any(|(range_start, range_end)| {
-        *range_start <= start && *range_end >= end
-    })
+fn subtract_single_interval(
+    target: Interval,
+    mask: &[Interval],
+) -> Vec<Interval> {
+    subtract_intervals(&[target], mask)
 }
 
 fn intersection_size(left: &[Interval], right: &[Interval]) -> u64 {
