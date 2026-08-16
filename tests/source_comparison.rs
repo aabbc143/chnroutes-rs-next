@@ -16,8 +16,7 @@ struct Slash8Stats {
 #[ignore = "requires network access"]
 fn compare_sources() {
     let apnic_data = apnic::fetch_ip_data().expect("failed to fetch APNIC data");
-    let chnroutes2_data =
-        chnroutes2::fetch_ip_data().expect("failed to fetch chnroutes2 data");
+    let chnroutes2_data = chnroutes2::fetch_ip_data().expect("failed to fetch chnroutes2 data");
 
     let apnic_set: HashSet<_> = apnic_data
         .into_iter()
@@ -36,12 +35,10 @@ fn compare_sources() {
     let apnic_addresses = total_addresses(&apnic_intervals);
     let chnroutes2_addresses = total_addresses(&chnroutes2_intervals);
 
-    let intersection_addresses =
-        intersection_size(&apnic_intervals, &chnroutes2_intervals);
+    let intersection_addresses = intersection_size(&apnic_intervals, &chnroutes2_intervals);
 
     let apnic_only_addresses = apnic_addresses - intersection_addresses;
-    let chnroutes2_only_addresses =
-        chnroutes2_addresses - intersection_addresses;
+    let chnroutes2_only_addresses = chnroutes2_addresses - intersection_addresses;
 
     println!("=== Source comparison ===");
     println!();
@@ -53,10 +50,7 @@ fn compare_sources() {
     println!("  chnroutes2 only:   {}", chnroutes2_only);
     println!();
     println!("Normalized address space:");
-    println!(
-        "  APNIC normalized ranges:      {}",
-        apnic_intervals.len()
-    );
+    println!("  APNIC normalized ranges:      {}", apnic_intervals.len());
     println!(
         "  chnroutes2 normalized ranges: {}",
         chnroutes2_intervals.len()
@@ -64,18 +58,9 @@ fn compare_sources() {
     println!();
     println!("IPv4 address coverage:");
     println!("  APNIC addresses:              {}", apnic_addresses);
-    println!(
-        "  chnroutes2 addresses:         {}",
-        chnroutes2_addresses
-    );
-    println!(
-        "  Intersection:                 {}",
-        intersection_addresses
-    );
-    println!(
-        "  APNIC only addresses:         {}",
-        apnic_only_addresses
-    );
+    println!("  chnroutes2 addresses:         {}", chnroutes2_addresses);
+    println!("  Intersection:                 {}", intersection_addresses);
+    println!("  APNIC only addresses:         {}", apnic_only_addresses);
     println!(
         "  chnroutes2 only addresses:    {}",
         chnroutes2_only_addresses
@@ -138,10 +123,7 @@ fn normalize(networks: &HashSet<IpNet>) -> Vec<Interval> {
     merged
 }
 
-fn subtract_intervals(
-    source: &[Interval],
-    mask: &[Interval],
-) -> Vec<Interval> {
+fn subtract_intervals(source: &[Interval], mask: &[Interval]) -> Vec<Interval> {
     let mut result = Vec::new();
     let mut mask_index = 0;
 
@@ -194,8 +176,7 @@ fn subtract_intervals(
 }
 
 fn print_slash8_stats(intervals: &[Interval]) {
-    let mut stats: Vec<Slash8Stats> =
-        (0..=255).map(|_| Slash8Stats::default()).collect();
+    let mut stats: Vec<Slash8Stats> = (0..=255).map(|_| Slash8Stats::default()).collect();
 
     for &(start, end) in intervals {
         let mut current = start;
@@ -212,8 +193,7 @@ fn print_slash8_stats(intervals: &[Interval]) {
             let part_end = end.min(octet_end);
 
             stats[first_octet].networks += 1;
-            stats[first_octet].addresses +=
-                u64::from(part_end) - u64::from(current) + 1;
+            stats[first_octet].addresses += u64::from(part_end) - u64::from(current) + 1;
 
             if part_end >= end {
                 break;
@@ -225,10 +205,7 @@ fn print_slash8_stats(intervals: &[Interval]) {
 
     println!();
     println!("=== chnroutes2 extra address space by /8 ===");
-    println!(
-        "{:<6} {:>12} {:>18}",
-        "/8", "Ranges", "Addresses"
-    );
+    println!("{:<6} {:>12} {:>18}", "/8", "Ranges", "Addresses");
 
     for (octet, stat) in stats.iter().enumerate() {
         if stat.addresses == 0 {
