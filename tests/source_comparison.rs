@@ -16,8 +16,7 @@ struct Slash8Stats {
 #[ignore = "requires network access"]
 fn compare_sources() {
     let apnic_data = apnic::fetch_ip_data().expect("failed to fetch APNIC data");
-    let chnroutes2_data =
-        chnroutes2::fetch_ip_data().expect("failed to fetch chnroutes2 data");
+    let chnroutes2_data = chnroutes2::fetch_ip_data().expect("failed to fetch chnroutes2 data");
 
     let apnic_set: HashSet<_> = apnic_data
         .into_iter()
@@ -36,12 +35,10 @@ fn compare_sources() {
     let apnic_addresses = total_addresses(&apnic_intervals);
     let chnroutes2_addresses = total_addresses(&chnroutes2_intervals);
 
-    let intersection_addresses =
-        intersection_size(&apnic_intervals, &chnroutes2_intervals);
+    let intersection_addresses = intersection_size(&apnic_intervals, &chnroutes2_intervals);
 
     let apnic_only_addresses = apnic_addresses - intersection_addresses;
-    let chnroutes2_only_addresses =
-        chnroutes2_addresses - intersection_addresses;
+    let chnroutes2_only_addresses = chnroutes2_addresses - intersection_addresses;
 
     println!("=== Source comparison ===");
     println!();
@@ -53,10 +50,7 @@ fn compare_sources() {
     println!("  chnroutes2 only:   {}", chnroutes2_only);
     println!();
     println!("Normalized address space:");
-    println!(
-        "  APNIC normalized ranges:      {}",
-        apnic_intervals.len()
-    );
+    println!("  APNIC normalized ranges:      {}", apnic_intervals.len());
     println!(
         "  chnroutes2 normalized ranges: {}",
         chnroutes2_intervals.len()
@@ -64,18 +58,9 @@ fn compare_sources() {
     println!();
     println!("IPv4 address coverage:");
     println!("  APNIC addresses:              {}", apnic_addresses);
-    println!(
-        "  chnroutes2 addresses:         {}",
-        chnroutes2_addresses
-    );
-    println!(
-        "  Intersection:                 {}",
-        intersection_addresses
-    );
-    println!(
-        "  APNIC only addresses:         {}",
-        apnic_only_addresses
-    );
+    println!("  chnroutes2 addresses:         {}", chnroutes2_addresses);
+    println!("  Intersection:                 {}", intersection_addresses);
+    println!("  APNIC only addresses:         {}", apnic_only_addresses);
     println!(
         "  chnroutes2 only addresses:    {}",
         chnroutes2_only_addresses
@@ -209,8 +194,7 @@ fn print_slash8_stats(intervals: &[Interval]) {
             let part_end = end.min(octet_end);
 
             stats[first_octet].networks += 1;
-            stats[first_octet].addresses +=
-                u64::from(part_end) - u64::from(current) + 1;
+            stats[first_octet].addresses += u64::from(part_end) - u64::from(current) + 1;
 
             if part_end >= end {
                 break;
@@ -243,24 +227,25 @@ fn print_top_chnroutes2_only(
     apnic_intervals: &[Interval],
     limit: usize,
 ) {
-    let mut ranges = Vec::new();
+    let mut ranges = chnroutes2_set
+        .iter()
+        .filter_map(|network| match network {
+            IpNet::V4(network) => {
+                let start = ipv4_to_u32(network.network());
+                let end = ipv4_to_u32(network.broadcast());
 
-    for network in chnroutes2_set {
-        let network_v4 = match network {
-            IpNet::V4(network) => network,
-            IpNet::V6(_) => continue,
-        };
+                let uncovered = subtract_single_interval((start, end), apnic_intervals);
+                let uncovered_addresses = total_addresses(&uncovered);
 
-        let start = ipv4_to_u32(network_v4.network());
-        let end = ipv4_to_u32(network_v4.broadcast());
-
-        let uncovered = subtract_single_interval((start, end), apnic_intervals);
-        let uncovered_addresses = total_addresses(&uncovered);
-
-        if uncovered_addresses > 0 {
-            ranges.push((network, uncovered_addresses));
-        }
-    }
+                if uncovered_addresses == 0 {
+                    None
+                } else {
+                    Some((network, uncovered_addresses))
+                }
+            }
+            IpNet::V6(_) => None,
+        })
+        .collect::<Vec<_>>();
 
     ranges.sort_unstable_by(|a, b| b.1.cmp(&a.1));
 
@@ -269,18 +254,11 @@ fn print_top_chnroutes2_only(
     println!("{:<20} {:>18}", "CIDR", "Uncovered");
 
     for (network, uncovered_addresses) in ranges.into_iter().take(limit) {
-        println!(
-            "{:<20} {:>18}",
-            network,
-            uncovered_addresses
-        );
+        println!("{:<20} {:>18}", network, uncovered_addresses);
     }
 }
 
-fn subtract_single_interval(
-    target: Interval,
-    mask: &[Interval],
-) -> Vec<Interval> {
+fn subtract_single_interval(target: Interval, mask: &[Interval]) -> Vec<Interval> {
     subtract_intervals(&[target], mask)
 }
 
