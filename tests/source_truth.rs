@@ -77,9 +77,10 @@ fn compare_truth_cases_against_sources() {
             IpNet::from_str(case.cidr).expect("truth case must contain a valid CIDR");
 
         let (start, end) = match network {
-            IpNet::V4(network) => {
-                (ipv4_to_u32(network.network()), ipv4_to_u32(network.broadcast()))
-            }
+            IpNet::V4(network) => (
+                ipv4_to_u32(network.network()),
+                ipv4_to_u32(network.broadcast()),
+            ),
             IpNet::V6(_) => unreachable!(),
         };
 
