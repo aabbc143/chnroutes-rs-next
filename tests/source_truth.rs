@@ -32,8 +32,7 @@ fn test_source_truth_cases_are_valid_ipv4() {
     let cases = truth_cases();
 
     for case in cases {
-        let network =
-            IpNet::from_str(case.cidr).expect("truth case must contain a valid CIDR");
+        let network = IpNet::from_str(case.cidr).expect("truth case must contain a valid CIDR");
 
         assert!(
             matches!(network, IpNet::V4(_)),
@@ -49,8 +48,7 @@ fn test_source_truth_cases_are_valid_ipv4() {
 #[ignore = "requires network access"]
 fn compare_truth_cases_against_sources() {
     let apnic_data = apnic::fetch_ip_data().expect("failed to fetch APNIC data");
-    let chnroutes2_data =
-        chnroutes2::fetch_ip_data().expect("failed to fetch chnroutes2 data");
+    let chnroutes2_data = chnroutes2::fetch_ip_data().expect("failed to fetch chnroutes2 data");
 
     let apnic_set: HashSet<_> = apnic_data
         .into_iter()
@@ -73,8 +71,7 @@ fn compare_truth_cases_against_sources() {
     );
 
     for case in truth_cases() {
-        let network =
-            IpNet::from_str(case.cidr).expect("truth case must contain a valid CIDR");
+        let network = IpNet::from_str(case.cidr).expect("truth case must contain a valid CIDR");
 
         let (start, end) = match network {
             IpNet::V4(network) => (
@@ -85,8 +82,7 @@ fn compare_truth_cases_against_sources() {
         };
 
         let apnic_coverage = coverage_percentage((start, end), &apnic_intervals);
-        let chnroutes2_coverage =
-            coverage_percentage((start, end), &chnroutes2_intervals);
+        let chnroutes2_coverage = coverage_percentage((start, end), &chnroutes2_intervals);
 
         println!(
             "{:<20} {:<20} {:>11.4}% {:>11.4}%",
