@@ -122,6 +122,26 @@ fn truth_cases() -> &'static [TruthCase] {
             reason: "Alibaba / AS37963",
         },
         TruthCase {
+            cidr: "8.129.0.0/16",
+            truth: Truth::CnMainlandCloud,
+            reason: "Alibaba / AS37963",
+        },
+        TruthCase {
+            cidr: "8.149.0.0/16",
+            truth: Truth::CnMainlandCloud,
+            reason: "Alibaba / AS37963",
+        },
+        TruthCase {
+            cidr: "8.163.0.0/16",
+            truth: Truth::CnMainlandCloud,
+            reason: "Alibaba / AS37963",
+        },
+        TruthCase {
+            cidr: "8.148.128.0/17",
+            truth: Truth::CnMainlandCloud,
+            reason: "Alibaba / AS37963",
+        },
+        TruthCase {
             cidr: "117.128.0.0/10",
             truth: Truth::CnMainlandIsp,
             reason: "China Mobile / AS9808",
