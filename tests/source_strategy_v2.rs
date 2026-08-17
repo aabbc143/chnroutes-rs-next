@@ -197,10 +197,7 @@ fn compare_smart_v2() {
 
 #[test]
 fn verify_known_network_classes() {
-    assert_eq!(
-        classify_origin_asn(37963),
-        NetworkClass::CnMainlandCloud
-    );
+    assert_eq!(classify_origin_asn(37963), NetworkClass::CnMainlandCloud);
     assert_eq!(classify_origin_asn(9808), NetworkClass::CnMainlandIsp);
     assert_eq!(classify_origin_asn(135097), NetworkClass::Overseas);
 }
