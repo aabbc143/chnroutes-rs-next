@@ -67,13 +67,23 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
-    fn temp_cache_path() -> PathBuf {
-        std::env::temp_dir().join(format!("chnroutes-bgp-cache-{}", std::process::id()))
+    fn temp_cache_path(name: &str) -> PathBuf {
+        let unique = format!(
+            "chnroutes-bgp-cache-{}-{}-{}",
+            name,
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+
+        std::env::temp_dir().join(unique)
     }
 
     #[test]
     fn test_missing_cache_is_not_fresh() {
-        let path = temp_cache_path();
+        let path = temp_cache_path("missing");
 
         let _ = fs::remove_file(&path);
 
@@ -85,7 +95,7 @@ mod tests {
 
     #[test]
     fn test_save_and_load_fresh_cache() {
-        let path = temp_cache_path();
+        let path = temp_cache_path("fresh");
 
         let _ = fs::remove_file(&path);
 
@@ -101,13 +111,15 @@ mod tests {
 
     #[test]
     fn test_expired_cache_is_not_loaded() {
-        let path = temp_cache_path();
+        let path = temp_cache_path("expired");
 
         let _ = fs::remove_file(&path);
 
-        let cache = BgpCache::with_max_age(&path, Duration::ZERO);
+        let cache = BgpCache::with_max_age(&path, Duration::from_secs(0));
 
         cache.save("expired-content").unwrap();
+
+        std::thread::sleep(Duration::from_millis(10));
 
         assert!(!cache.is_fresh().unwrap());
         assert_eq!(cache.load().unwrap(), None);
