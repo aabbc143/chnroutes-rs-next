@@ -1,5 +1,8 @@
 use serde::Deserialize;
 
+const BGP_TABLE_URL: &str = "https://bgp.tools/table.jsonl";
+const BGP_USER_AGENT: &str = "chnroutes-rs-next/0.2.0";
+
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct BgpTableRecord {
     #[serde(rename = "CIDR")]
@@ -19,6 +22,18 @@ pub fn parse_table_jsonl(content: &str) -> crate::error::Result<Vec<BgpTableReco
         .map(serde_json::from_str)
         .collect::<std::result::Result<Vec<_>, _>>()
         .map_err(Into::into)
+}
+
+pub fn fetch_table_jsonl() -> crate::error::Result<String> {
+    let client = reqwest::blocking::Client::builder()
+        .user_agent(BGP_USER_AGENT)
+        .build()?;
+
+    let response = client.get(BGP_TABLE_URL).send()?;
+
+    let response = response.error_for_status()?;
+
+    Ok(response.text()?)
 }
 
 #[cfg(test)]
