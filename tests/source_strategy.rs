@@ -155,9 +155,7 @@ fn classify(case: &Case, strategy: Strategy) -> bool {
     match strategy {
         Strategy::Apnic => case.apnic_coverage > 0.0,
         Strategy::Chnroutes2 => case.chnroutes2_coverage > 0.0,
-        Strategy::SmartV1 => {
-            case.chnroutes2_coverage > 0.0 && case.cidr != "223.122.0.0/15"
-        }
+        Strategy::SmartV1 => case.chnroutes2_coverage > 0.0 && case.cidr != "223.122.0.0/15",
     }
 }
 
