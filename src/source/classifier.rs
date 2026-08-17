@@ -1,3 +1,4 @@
+
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,10 +95,7 @@ mod tests {
 
     #[test]
     fn test_classify_known_asns() {
-        assert_eq!(
-            classify_origin_asn(37963),
-            NetworkClass::CnMainlandCloud
-        );
+        assert_eq!(classify_origin_asn(37963), NetworkClass::CnMainlandCloud);
         assert_eq!(classify_origin_asn(9808), NetworkClass::CnMainlandIsp);
         assert_eq!(classify_origin_asn(135097), NetworkClass::Overseas);
     }
@@ -126,10 +124,7 @@ mod tests {
         classifier.insert_hong_kong(4515);
         classifier.insert_overseas(135097);
 
-        assert_eq!(
-            classifier.classify(37963),
-            AsnClass::CnMainlandCloud
-        );
+        assert_eq!(classifier.classify(37963), AsnClass::CnMainlandCloud);
         assert_eq!(classifier.classify(9808), AsnClass::CnMainlandIsp);
         assert_eq!(classifier.classify(4515), AsnClass::HongKong);
         assert_eq!(classifier.classify(135097), AsnClass::Overseas);
