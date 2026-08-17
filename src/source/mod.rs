@@ -3,6 +3,7 @@ use std::str::FromStr;
 use ipnet::IpNet;
 
 pub mod apnic;
+pub mod bgp;
 pub mod chnroutes2;
 pub mod classifier;
 
@@ -76,7 +77,10 @@ mod tests {
     fn test_source_from_str() {
         assert_eq!("apnic".parse::<Source>().unwrap(), Source::Apnic);
         assert_eq!("APNIC".parse::<Source>().unwrap(), Source::Apnic);
-        assert_eq!("chnroutes2".parse::<Source>().unwrap(), Source::Chnroutes2);
+        assert_eq!(
+            "chnroutes2".parse::<Source>().unwrap(),
+            Source::Chnroutes2
+        );
         assert!("unknown".parse::<Source>().is_err());
     }
 
