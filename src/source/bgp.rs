@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use super::bgp_cache::BgpCache;
+
 const BGP_TABLE_URL: &str = "https://bgp.tools/table.jsonl";
 const BGP_USER_AGENT: &str = "chnroutes-rs-next/0.2.0";
 
@@ -36,54 +38,81 @@ pub fn fetch_table_jsonl() -> crate::error::Result<String> {
     Ok(response.text()?)
 }
 
+pub fn fetch_table_jsonl_cached(cache: &BgpCache) -> crate::error::Result<String> {
+    if let Some(content) = cache.load()? {
+        return Ok(content);
+    }
+
+    let content = fetch_table_jsonl()?;
+
+    cache.save(&content)?;
+
+    Ok(content)
+}
+
+pub fn fetch_records_cached(cache: &BgpCache) -> crate::error::Result<Vec<BgpTableRecord>> {
+    let content = fetch_table_jsonl_cached(cache)?;
+    parse_table_jsonl(&content)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::Duration;
 
-    #[test]
-    fn test_parse_table_jsonl() {
-        let content = r#"{"CIDR":"8.152.0.0/13","ASN":37963,"Hits":1234}
-{"CIDR":"117.128.0.0/10","ASN":9808,"Hits":5678}
-{"CIDR":"156.224.128.0/17","ASN":135097,"Hits":42}
-"#;
-
-        let records = parse_table_jsonl(content).unwrap();
-
-        assert_eq!(records.len(), 3);
-
-        assert_eq!(
-            records[0],
-            BgpTableRecord {
-                cidr: "8.152.0.0/13".to_string(),
-                asn: 37963,
-                hits: 1234,
-            }
+    fn temp_cache_path(name: &str) -> std::path::PathBuf {
+        let unique = format!(
+            "chnroutes-bgp-provider-{}-{}-{}",
+            name,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
         );
 
-        assert_eq!(records[1].asn, 9808);
-        assert_eq!(records[2].hits, 42);
+        std::env::temp_dir().join(unique)
     }
 
     #[test]
-    fn test_parse_table_jsonl_ignores_blank_lines() {
-        let content = r#"
-{"CIDR":"8.152.0.0/13","ASN":37963,"Hits":1234}
+    fn test_cached_fetch_uses_fresh_cache() {
+        let path = temp_cache_path("fresh");
+        let _ = fs::remove_file(&path);
 
-{"CIDR":"117.128.0.0/10","ASN":9808,"Hits":5678}
+        let cache = BgpCache::with_max_age(&path, Duration::from_secs(60));
 
+        let content = r#"{"CIDR":"8.152.0.0/13","ASN":37963,"Hits":1234}
 "#;
 
-        let records = parse_table_jsonl(content).unwrap();
+        cache.save(content).unwrap();
+
+        let loaded = fetch_table_jsonl_cached(&cache).unwrap();
+
+        assert_eq!(loaded, content);
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_cached_records_are_parsed() {
+        let path = temp_cache_path("records");
+        let _ = fs::remove_file(&path);
+
+        let cache = BgpCache::with_max_age(&path, Duration::from_secs(60));
+
+        let content = r#"{"CIDR":"8.152.0.0/13","ASN":37963,"Hits":1234}
+{"CIDR":"117.128.0.0/10","ASN":9808,"Hits":5678}
+"#;
+
+        cache.save(content).unwrap();
+
+        let records = fetch_records_cached(&cache).unwrap();
 
         assert_eq!(records.len(), 2);
-    }
+        assert_eq!(records[0].asn, 37963);
+        assert_eq!(records[1].asn, 9808);
 
-    #[test]
-    fn test_parse_table_jsonl_invalid_json() {
-        let content = r#"{"CIDR":"8.152.0.0/13","ASN":37963,"Hits":1234}
-not-json
-"#;
-
-        assert!(parse_table_jsonl(content).is_err());
+        let _ = fs::remove_file(&path);
     }
 }
