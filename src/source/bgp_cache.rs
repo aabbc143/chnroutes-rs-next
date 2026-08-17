@@ -68,10 +68,7 @@ mod tests {
     use std::time::Duration;
 
     fn temp_cache_path() -> PathBuf {
-        std::env::temp_dir().join(format!(
-            "chnroutes-bgp-cache-{}",
-            std::process::id()
-        ))
+        std::env::temp_dir().join(format!("chnroutes-bgp-cache-{}", std::process::id()))
     }
 
     #[test]
@@ -97,10 +94,7 @@ mod tests {
         cache.save("test-content").unwrap();
 
         assert!(cache.is_fresh().unwrap());
-        assert_eq!(
-            cache.load().unwrap(),
-            Some("test-content".to_string())
-        );
+        assert_eq!(cache.load().unwrap(), Some("test-content".to_string()));
 
         let _ = fs::remove_file(&path);
     }
