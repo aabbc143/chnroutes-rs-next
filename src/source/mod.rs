@@ -4,6 +4,7 @@ use ipnet::IpNet;
 
 pub mod apnic;
 pub mod chnroutes2;
+pub mod classifier;
 
 /// Data source used to generate the CN IP route list.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
