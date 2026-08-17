@@ -9,10 +9,7 @@ pub enum NetworkClass {
 
 impl NetworkClass {
     pub const fn is_cn_mainland(self) -> bool {
-        matches!(
-            self,
-            Self::CnMainlandCloud | Self::CnMainlandIsp
-        )
+        matches!(self, Self::CnMainlandCloud | Self::CnMainlandIsp)
     }
 
     pub const fn is_direct(self) -> bool {
@@ -35,26 +32,14 @@ mod tests {
 
     #[test]
     fn test_classify_known_asns() {
-        assert_eq!(
-            classify_origin_asn(37963),
-            NetworkClass::CnMainlandCloud
-        );
-        assert_eq!(
-            classify_origin_asn(9808),
-            NetworkClass::CnMainlandIsp
-        );
-        assert_eq!(
-            classify_origin_asn(135097),
-            NetworkClass::Overseas
-        );
+        assert_eq!(classify_origin_asn(37963), NetworkClass::CnMainlandCloud);
+        assert_eq!(classify_origin_asn(9808), NetworkClass::CnMainlandIsp);
+        assert_eq!(classify_origin_asn(135097), NetworkClass::Overseas);
     }
 
     #[test]
     fn test_unknown_asn() {
-        assert_eq!(
-            classify_origin_asn(99999),
-            NetworkClass::Unknown
-        );
+        assert_eq!(classify_origin_asn(99999), NetworkClass::Unknown);
     }
 
     #[test]
