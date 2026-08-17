@@ -24,9 +24,7 @@ impl BgpCache {
         #[cfg(target_os = "windows")]
         {
             if let Some(base) = std::env::var_os("LOCALAPPDATA") {
-                return Ok(PathBuf::from(base)
-                    .join("chnroutes")
-                    .join(CACHE_FILE_NAME));
+                return Ok(PathBuf::from(base).join("chnroutes").join(CACHE_FILE_NAME));
             }
         }
 
@@ -44,9 +42,7 @@ impl BgpCache {
         #[cfg(not(any(target_os = "windows", target_os = "macos")))]
         {
             if let Some(base) = std::env::var_os("XDG_CACHE_HOME") {
-                return Ok(PathBuf::from(base)
-                    .join("chnroutes")
-                    .join(CACHE_FILE_NAME));
+                return Ok(PathBuf::from(base).join("chnroutes").join(CACHE_FILE_NAME));
             }
 
             if let Some(home) = std::env::var_os("HOME") {
@@ -190,6 +186,9 @@ mod tests {
     fn test_default_cache_can_be_created() {
         let cache = BgpCache::default().unwrap();
 
-        assert_eq!(cache.path().file_name().and_then(|name| name.to_str()), Some(CACHE_FILE_NAME));
+        assert_eq!(
+            cache.path().file_name().and_then(|name| name.to_str()),
+            Some(CACHE_FILE_NAME)
+        );
     }
 }
