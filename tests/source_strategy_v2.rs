@@ -1,22 +1,16 @@
+use chnroutes::source::classifier::{classify_origin_asn, NetworkClass};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Truth {
     CnMainland,
     NonCnMainland,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum NetworkClass {
-    CnMainlandCloud,
-    CnMainlandIsp,
-    HongKong,
-    Overseas,
-}
-
 #[derive(Debug, Clone, Copy)]
 struct Case {
     cidr: &'static str,
     truth: Truth,
-    class: NetworkClass,
+    origin_asn: u32,
     chnroutes2_coverage: f64,
 }
 
@@ -75,79 +69,79 @@ const CASES: &[Case] = &[
     Case {
         cidr: "8.152.0.0/13",
         truth: Truth::CnMainland,
-        class: NetworkClass::CnMainlandCloud,
+        origin_asn: 37963,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "8.136.0.0/13",
         truth: Truth::CnMainland,
-        class: NetworkClass::CnMainlandCloud,
+        origin_asn: 37963,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "8.144.0.0/14",
         truth: Truth::CnMainland,
-        class: NetworkClass::CnMainlandCloud,
+        origin_asn: 37963,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "8.160.0.0/15",
         truth: Truth::CnMainland,
-        class: NetworkClass::CnMainlandCloud,
+        origin_asn: 37963,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "8.130.0.0/15",
         truth: Truth::CnMainland,
-        class: NetworkClass::CnMainlandCloud,
+        origin_asn: 37963,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "8.129.0.0/16",
         truth: Truth::CnMainland,
-        class: NetworkClass::CnMainlandCloud,
+        origin_asn: 37963,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "8.149.0.0/16",
         truth: Truth::CnMainland,
-        class: NetworkClass::CnMainlandCloud,
+        origin_asn: 37963,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "8.163.0.0/16",
         truth: Truth::CnMainland,
-        class: NetworkClass::CnMainlandCloud,
+        origin_asn: 37963,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "8.148.128.0/17",
         truth: Truth::CnMainland,
-        class: NetworkClass::CnMainlandCloud,
+        origin_asn: 37963,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "117.128.0.0/10",
         truth: Truth::CnMainland,
-        class: NetworkClass::CnMainlandIsp,
+        origin_asn: 9808,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "223.122.0.0/15",
         truth: Truth::NonCnMainland,
-        class: NetworkClass::HongKong,
+        origin_asn: 135097,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "156.224.128.0/17",
         truth: Truth::NonCnMainland,
-        class: NetworkClass::Overseas,
+        origin_asn: 135097,
         chnroutes2_coverage: 100.0,
     },
     Case {
         cidr: "154.197.128.0/17",
         truth: Truth::NonCnMainland,
-        class: NetworkClass::Overseas,
+        origin_asn: 135097,
         chnroutes2_coverage: 100.0,
     },
 ];
@@ -157,10 +151,7 @@ fn classify_v2(case: &Case) -> bool {
         return false;
     }
 
-    matches!(
-        case.class,
-        NetworkClass::CnMainlandCloud | NetworkClass::CnMainlandIsp
-    )
+    classify_origin_asn(case.origin_asn).is_direct()
 }
 
 fn evaluate() -> ConfusionMatrix {
@@ -202,4 +193,14 @@ fn compare_smart_v2() {
     assert_eq!(matrix.fn_, 0);
     assert_eq!(matrix.fp, 0);
     assert_eq!(matrix.tn, 3);
+}
+
+#[test]
+fn verify_known_network_classes() {
+    assert_eq!(
+        classify_origin_asn(37963),
+        NetworkClass::CnMainlandCloud
+    );
+    assert_eq!(classify_origin_asn(9808), NetworkClass::CnMainlandIsp);
+    assert_eq!(classify_origin_asn(135097), NetworkClass::Overseas);
 }
