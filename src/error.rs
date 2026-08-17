@@ -11,6 +11,9 @@ pub enum Error {
     #[error("UTF-8 error: {0}")]
     Utf8Error(#[from] std::string::FromUtf8Error),
 
+    #[error("JSON error: {0}")]
+    JsonError(#[from] serde_json::Error),
+
     #[error("Cache error: {0}")]
     CacheError(#[from] CacheError),
 
