@@ -23,15 +23,9 @@ fn test_bgp_records_feed_asn_classifier() {
         AsnClass::CnMainlandCloud
     );
 
-    assert_eq!(
-        classifier.classify(records[1].asn),
-        AsnClass::CnMainlandIsp
-    );
+    assert_eq!(classifier.classify(records[1].asn), AsnClass::CnMainlandIsp);
 
-    assert_eq!(
-        classifier.classify(records[2].asn),
-        AsnClass::Overseas
-    );
+    assert_eq!(classifier.classify(records[2].asn), AsnClass::Overseas);
 }
 
 #[test]
@@ -43,10 +37,7 @@ fn test_unknown_asn_is_conservative() {
 
     let classifier = AsnClassifier::new();
 
-    assert_eq!(
-        classifier.classify(records[0].asn),
-        AsnClass::Unknown
-    );
+    assert_eq!(classifier.classify(records[0].asn), AsnClass::Unknown);
 
     assert!(!classifier.is_direct(records[0].asn));
 }
