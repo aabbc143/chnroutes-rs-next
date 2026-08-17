@@ -83,3 +83,18 @@ jobs:
 
       - name: Run Ground Truth coverage test
         run: cargo test --test source_truth compare_truth_cases_against_sources -- --ignored --nocapture
+
+  source-strategy:
+    name: Compare Source Strategies
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run source strategy simulation
+        run: cargo test --test source_strategy compare_strategies -- --nocapture
