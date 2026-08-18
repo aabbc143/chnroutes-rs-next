@@ -147,9 +147,7 @@ pub fn fetch_direct_ipv4_routes_cached(
     parse_direct_ipv4_routes_jsonl(&content, classifier)
 }
 
-pub fn fetch_direct_ipv4_routes(
-    classifier: &AsnClassifier,
-) -> crate::error::Result<Vec<IpNet>> {
+pub fn fetch_direct_ipv4_routes(classifier: &AsnClassifier) -> crate::error::Result<Vec<IpNet>> {
     let cache = BgpCache::from_default_path()?;
     fetch_direct_ipv4_routes_cached(&cache, classifier)
 }
