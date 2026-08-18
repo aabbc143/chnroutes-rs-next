@@ -9,7 +9,7 @@ pub struct BgpAsnWhois {
 pub fn parse_asn_whois_line(line: &str) -> crate::error::Result<BgpAsnWhois> {
     let fields: Vec<_> = line.split('|').map(str::trim).collect();
 
-    if fields.len() < 7 {
+    if fields.len() < 8 {
         return Err(crate::error::Error::InvalidTarget);
     }
 
@@ -21,7 +21,7 @@ pub fn parse_asn_whois_line(line: &str) -> crate::error::Result<BgpAsnWhois> {
     let registry = fields[5].to_string();
     let name = fields[7..].join(" | ");
 
-    if country.is_empty() || registry.is_empty() {
+    if country.is_empty() || registry.is_empty() || name.is_empty() {
         return Err(crate::error::Error::InvalidTarget);
     }
 
@@ -48,7 +48,7 @@ mod tests {
     #[test]
     fn test_parse_asn_whois_line() {
         let line =
-            "37963  |        |           |           | CN | APNIC    | 2001-03-27 | Alibaba Cloud";
+            "37963  |        |           | CN | APNIC    | 2001-03-27 | Alibaba Cloud";
 
         let record = parse_asn_whois_line(line).unwrap();
 
@@ -61,13 +61,25 @@ mod tests {
     #[test]
     fn test_parse_whois_with_empty_prefix_fields() {
         let line =
-            "9808   |        |           |           | CN | APNIC    | 2002-08-09 | China Mobile";
+            "9808   |        |           | CN | APNIC    | 2002-08-09 | China Mobile";
 
         let record = parse_asn_whois_line(line).unwrap();
 
         assert_eq!(record.asn, 9808);
         assert_eq!(record.country, "CN");
         assert_eq!(record.name, "China Mobile");
+    }
+
+    #[test]
+    fn test_parse_whois_with_embedded_pipes_in_name() {
+        let line =
+            "4134   |        |           | CN | APNIC    | 2000-01-01 | China Telecom | Backbone";
+
+        let record = parse_asn_whois_line(line).unwrap();
+
+        assert_eq!(record.asn, 4134);
+        assert_eq!(record.country, "CN");
+        assert_eq!(record.name, "China Telecom | Backbone");
     }
 
     #[test]
@@ -87,9 +99,31 @@ mod tests {
     }
 
     #[test]
+    fn test_short_whois_line_is_rejected() {
+        let line = "37963 | | | | CN | APNIC | 2001-03-27";
+
+        assert!(parse_asn_whois_line(line).is_err());
+    }
+
+    #[test]
     fn test_empty_country_is_rejected() {
         let line =
-            "37963  |        |           |           |    | APNIC    | 2001-03-27 | Alibaba Cloud";
+            "37963  |        |           |    | APNIC    | 2001-03-27 | Alibaba Cloud";
+
+        assert!(parse_asn_whois_line(line).is_err());
+    }
+
+    #[test]
+    fn test_empty_registry_is_rejected() {
+        let line =
+            "37963  |        |           | CN |          | 2001-03-27 | Alibaba Cloud";
+
+        assert!(parse_asn_whois_line(line).is_err());
+    }
+
+    #[test]
+    fn test_empty_name_is_rejected() {
+        let line = "37963 | | | | CN | APNIC | 2001-03-27 |";
 
         assert!(parse_asn_whois_line(line).is_err());
     }
