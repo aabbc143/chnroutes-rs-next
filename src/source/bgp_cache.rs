@@ -59,7 +59,7 @@ impl BgpCache {
         ))
     }
 
-    pub fn default() -> io::Result<Self> {
+    pub fn from_default_path() -> io::Result<Self> {
         Ok(Self::new(Self::default_path()?))
     }
 
@@ -184,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_default_cache_can_be_created() {
-        let cache = BgpCache::default().unwrap();
+        let cache = BgpCache::from_default_path().unwrap();
 
         assert_eq!(
             cache.path().file_name().and_then(|name| name.to_str()),
