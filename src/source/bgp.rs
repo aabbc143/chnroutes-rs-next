@@ -192,10 +192,7 @@ mod tests {
         let routes = parse_routes_jsonl(content).unwrap();
 
         assert_eq!(routes.len(), 2);
-        assert_eq!(
-            routes[0].network,
-            "8.152.0.0/13".parse::<IpNet>().unwrap()
-        );
+        assert_eq!(routes[0].network, "8.152.0.0/13".parse::<IpNet>().unwrap());
         assert_eq!(routes[0].asn, 37963);
         assert_eq!(routes[0].hits, 1234);
     }
