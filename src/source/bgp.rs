@@ -55,6 +55,11 @@ pub fn fetch_records_cached(cache: &BgpCache) -> crate::error::Result<Vec<BgpTab
     parse_table_jsonl(&content)
 }
 
+pub fn fetch_records() -> crate::error::Result<Vec<BgpTableRecord>> {
+    let cache = BgpCache::from_default_path()?;
+    fetch_records_cached(&cache)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
