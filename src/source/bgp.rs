@@ -3,6 +3,7 @@ use serde::Deserialize;
 use std::str::FromStr;
 
 use super::bgp_cache::BgpCache;
+use super::classifier::AsnClassifier;
 
 const BGP_TABLE_URL: &str = "https://bgp.tools/table.jsonl";
 const BGP_USER_AGENT: &str = "chnroutes-rs-next/0.2.0";
@@ -69,6 +70,25 @@ pub fn parse_ipv4_routes_jsonl(content: &str) -> crate::error::Result<Vec<BgpRou
     Ok(filter_ipv4_routes(routes))
 }
 
+pub fn filter_direct_routes(
+    routes: Vec<BgpRoute>,
+    classifier: &AsnClassifier,
+) -> Vec<IpNet> {
+    routes
+        .into_iter()
+        .filter(|route| classifier.is_direct(route.asn))
+        .map(|route| route.network)
+        .collect()
+}
+
+pub fn parse_direct_ipv4_routes_jsonl(
+    content: &str,
+    classifier: &AsnClassifier,
+) -> crate::error::Result<Vec<IpNet>> {
+    let routes = parse_ipv4_routes_jsonl(content)?;
+    Ok(filter_direct_routes(routes, classifier))
+}
+
 pub fn fetch_table_jsonl() -> crate::error::Result<String> {
     let client = reqwest::blocking::Client::builder()
         .user_agent(BGP_USER_AGENT)
@@ -120,6 +140,21 @@ pub fn fetch_ipv4_routes_cached(cache: &BgpCache) -> crate::error::Result<Vec<Bg
 pub fn fetch_ipv4_routes() -> crate::error::Result<Vec<BgpRoute>> {
     let cache = BgpCache::from_default_path()?;
     fetch_ipv4_routes_cached(&cache)
+}
+
+pub fn fetch_direct_ipv4_routes_cached(
+    cache: &BgpCache,
+    classifier: &AsnClassifier,
+) -> crate::error::Result<Vec<IpNet>> {
+    let content = fetch_table_jsonl_cached(cache)?;
+    parse_direct_ipv4_routes_jsonl(&content, classifier)
+}
+
+pub fn fetch_direct_ipv4_routes(
+    classifier: &AsnClassifier,
+) -> crate::error::Result<Vec<IpNet>> {
+    let cache = BgpCache::from_default_path()?;
+    fetch_direct_ipv4_routes_cached(&cache, classifier)
 }
 
 #[cfg(test)]
@@ -192,7 +227,10 @@ mod tests {
         let routes = parse_routes_jsonl(content).unwrap();
 
         assert_eq!(routes.len(), 2);
-        assert_eq!(routes[0].network, "8.152.0.0/13".parse::<IpNet>().unwrap());
+        assert_eq!(
+            routes[0].network,
+            "8.152.0.0/13".parse::<IpNet>().unwrap()
+        );
         assert_eq!(routes[0].asn, 37963);
         assert_eq!(routes[0].hits, 1234);
     }
@@ -247,5 +285,51 @@ mod tests {
         assert_eq!(routes.len(), 2);
         assert_eq!(routes[0].asn, 37963);
         assert_eq!(routes[1].asn, 9808);
+    }
+
+    #[test]
+    fn test_filter_direct_routes() {
+        let content = r#"{"CIDR":"8.152.0.0/13","ASN":37963,"Hits":1234}
+{"CIDR":"117.128.0.0/10","ASN":9808,"Hits":5678}
+{"CIDR":"223.122.0.0/15","ASN":4515,"Hits":999}
+{"CIDR":"156.224.128.0/17","ASN":135097,"Hits":42}
+{"CIDR":"1.2.3.0/24","ASN":99999,"Hits":1}
+"#;
+
+        let routes = parse_ipv4_routes_jsonl(content).unwrap();
+
+        let mut classifier = AsnClassifier::new();
+        classifier.insert_mainland_cloud(37963);
+        classifier.insert_mainland_isp(9808);
+        classifier.insert_hong_kong(4515);
+        classifier.insert_overseas(135097);
+
+        let direct = filter_direct_routes(routes, &classifier);
+
+        assert_eq!(direct.len(), 2);
+        assert!(direct.contains(&"8.152.0.0/13".parse::<IpNet>().unwrap()));
+        assert!(direct.contains(&"117.128.0.0/10".parse::<IpNet>().unwrap()));
+    }
+
+    #[test]
+    fn test_parse_direct_ipv4_routes_jsonl_is_conservative() {
+        let content = r#"{"CIDR":"8.152.0.0/13","ASN":37963,"Hits":1234}
+{"CIDR":"223.122.0.0/15","ASN":4515,"Hits":999}
+{"CIDR":"2001:db8::/32","ASN":9808,"Hits":10}
+{"CIDR":"156.224.128.0/17","ASN":135097,"Hits":42}
+"#;
+
+        let mut classifier = AsnClassifier::new();
+        classifier.insert_mainland_cloud(37963);
+        classifier.insert_hong_kong(4515);
+        classifier.insert_overseas(135097);
+
+        let direct = parse_direct_ipv4_routes_jsonl(content, &classifier).unwrap();
+
+        assert_eq!(direct.len(), 1);
+        assert_eq!(
+            direct[0],
+            "8.152.0.0/13".parse::<IpNet>().unwrap()
+        );
     }
 }
