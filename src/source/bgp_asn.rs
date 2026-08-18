@@ -136,20 +136,14 @@ AS12345,"Example Network, Inc.",Unknown
             BgpNetworkClass::Eyeball
         );
 
-        assert_eq!(
-            classify_network_class("Hosting"),
-            BgpNetworkClass::Hosting
-        );
+        assert_eq!(classify_network_class("Hosting"), BgpNetworkClass::Hosting);
 
         assert_eq!(
             classify_network_class("Server Hosting"),
             BgpNetworkClass::Hosting
         );
 
-        assert_eq!(
-            classify_network_class("Unknown"),
-            BgpNetworkClass::Unknown
-        );
+        assert_eq!(classify_network_class("Unknown"), BgpNetworkClass::Unknown);
 
         assert_eq!(
             classify_network_class("something-else"),
