@@ -4,6 +4,7 @@ use ipnet::IpNet;
 
 pub mod apnic;
 pub mod bgp;
+pub mod bgp_asn;
 pub mod bgp_cache;
 pub mod chnroutes2;
 pub mod classifier;
