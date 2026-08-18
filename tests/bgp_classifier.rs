@@ -26,10 +26,7 @@ fn test_bgp_routes_are_classified_by_origin_asn() {
         AsnClass::CnMainlandCloud
     );
 
-    assert_eq!(
-        classifier.classify(routes[1].asn),
-        AsnClass::CnMainlandIsp
-    );
+    assert_eq!(classifier.classify(routes[1].asn), AsnClass::CnMainlandIsp);
 
     assert_eq!(classifier.classify(routes[2].asn), AsnClass::HongKong);
 
