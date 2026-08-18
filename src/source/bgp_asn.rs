@@ -1,5 +1,12 @@
 use serde::Deserialize;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BgpNetworkClass {
+    Eyeball,
+    Hosting,
+    Unknown,
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct BgpAsnRecord {
     pub asn: String,
@@ -10,6 +17,10 @@ pub struct BgpAsnRecord {
 impl BgpAsnRecord {
     pub fn asn_number(&self) -> crate::error::Result<u32> {
         parse_asn(&self.asn)
+    }
+
+    pub fn network_class(&self) -> BgpNetworkClass {
+        classify_network_class(&self.class)
     }
 }
 
@@ -24,6 +35,14 @@ pub fn parse_asn(value: &str) -> crate::error::Result<u32> {
     number
         .parse::<u32>()
         .map_err(|_| crate::error::Error::InvalidTarget)
+}
+
+pub fn classify_network_class(value: &str) -> BgpNetworkClass {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "eyeball" => BgpNetworkClass::Eyeball,
+        "hosting" | "server hosting" => BgpNetworkClass::Hosting,
+        _ => BgpNetworkClass::Unknown,
+    }
 }
 
 pub fn parse_asns_csv(content: &str) -> crate::error::Result<Vec<BgpAsnRecord>> {
@@ -108,6 +127,45 @@ AS12345,"Example Network, Inc.",Unknown
         assert!(parse_asn("AS-not-a-number").is_err());
         assert!(parse_asn("").is_err());
         assert!(parse_asn("AS").is_err());
+    }
+
+    #[test]
+    fn test_classify_network_class() {
+        assert_eq!(
+            classify_network_class("Eyeball"),
+            BgpNetworkClass::Eyeball
+        );
+
+        assert_eq!(
+            classify_network_class("Hosting"),
+            BgpNetworkClass::Hosting
+        );
+
+        assert_eq!(
+            classify_network_class("Server Hosting"),
+            BgpNetworkClass::Hosting
+        );
+
+        assert_eq!(
+            classify_network_class("Unknown"),
+            BgpNetworkClass::Unknown
+        );
+
+        assert_eq!(
+            classify_network_class("something-else"),
+            BgpNetworkClass::Unknown
+        );
+    }
+
+    #[test]
+    fn test_asn_record_network_class() {
+        let record = BgpAsnRecord {
+            asn: "AS37963".to_string(),
+            name: "Example".to_string(),
+            class: "Eyeball".to_string(),
+        };
+
+        assert_eq!(record.network_class(), BgpNetworkClass::Eyeball);
     }
 
     #[test]
