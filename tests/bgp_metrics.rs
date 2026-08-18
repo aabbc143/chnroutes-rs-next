@@ -16,10 +16,7 @@ struct BgpMetrics {
 
 fn route_interval(route: &BgpRoute) -> Option<Interval> {
     match route.network {
-        IpNet::V4(network) => Some((
-            u32::from(network.network()),
-            u32::from(network.broadcast()),
-        )),
+        IpNet::V4(network) => Some((u32::from(network.network()), u32::from(network.broadcast()))),
         IpNet::V6(_) => None,
     }
 }
