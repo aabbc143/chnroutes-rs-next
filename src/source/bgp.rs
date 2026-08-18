@@ -30,8 +30,8 @@ impl TryFrom<BgpTableRecord> for BgpRoute {
     type Error = crate::error::Error;
 
     fn try_from(record: BgpTableRecord) -> Result<Self, Self::Error> {
-        let network = IpNet::from_str(&record.cidr)
-            .map_err(|_| crate::error::Error::InvalidTarget)?;
+        let network =
+            IpNet::from_str(&record.cidr).map_err(|_| crate::error::Error::InvalidTarget)?;
 
         Ok(Self {
             network,
@@ -171,10 +171,7 @@ mod tests {
         let routes = parse_routes_jsonl(content).unwrap();
 
         assert_eq!(routes.len(), 2);
-        assert_eq!(
-            routes[0].network,
-            "8.152.0.0/13".parse::<IpNet>().unwrap()
-        );
+        assert_eq!(routes[0].network, "8.152.0.0/13".parse::<IpNet>().unwrap());
         assert_eq!(routes[0].asn, 37963);
         assert_eq!(routes[0].hits, 1234);
     }
