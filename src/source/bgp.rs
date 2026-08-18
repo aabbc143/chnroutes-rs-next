@@ -1,4 +1,6 @@
+use ipnet::IpNet;
 use serde::Deserialize;
+use std::str::FromStr;
 
 use super::bgp_cache::BgpCache;
 
@@ -17,6 +19,28 @@ pub struct BgpTableRecord {
     pub hits: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BgpRoute {
+    pub network: IpNet,
+    pub asn: u32,
+    pub hits: u64,
+}
+
+impl TryFrom<BgpTableRecord> for BgpRoute {
+    type Error = crate::error::Error;
+
+    fn try_from(record: BgpTableRecord) -> Result<Self, Self::Error> {
+        let network = IpNet::from_str(&record.cidr)
+            .map_err(|_| crate::error::Error::InvalidTarget)?;
+
+        Ok(Self {
+            network,
+            asn: record.asn,
+            hits: record.hits,
+        })
+    }
+}
+
 pub fn parse_table_jsonl(content: &str) -> crate::error::Result<Vec<BgpTableRecord>> {
     content
         .lines()
@@ -24,6 +48,13 @@ pub fn parse_table_jsonl(content: &str) -> crate::error::Result<Vec<BgpTableReco
         .map(serde_json::from_str)
         .collect::<std::result::Result<Vec<_>, _>>()
         .map_err(Into::into)
+}
+
+pub fn parse_routes_jsonl(content: &str) -> crate::error::Result<Vec<BgpRoute>> {
+    parse_table_jsonl(content)?
+        .into_iter()
+        .map(BgpRoute::try_from)
+        .collect()
 }
 
 pub fn fetch_table_jsonl() -> crate::error::Result<String> {
@@ -58,6 +89,16 @@ pub fn fetch_records_cached(cache: &BgpCache) -> crate::error::Result<Vec<BgpTab
 pub fn fetch_records() -> crate::error::Result<Vec<BgpTableRecord>> {
     let cache = BgpCache::from_default_path()?;
     fetch_records_cached(&cache)
+}
+
+pub fn fetch_routes_cached(cache: &BgpCache) -> crate::error::Result<Vec<BgpRoute>> {
+    let content = fetch_table_jsonl_cached(cache)?;
+    parse_routes_jsonl(&content)
+}
+
+pub fn fetch_routes() -> crate::error::Result<Vec<BgpRoute>> {
+    let cache = BgpCache::from_default_path()?;
+    fetch_routes_cached(&cache)
 }
 
 #[cfg(test)]
@@ -119,5 +160,41 @@ mod tests {
         assert_eq!(records[1].asn, 9808);
 
         let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_parse_routes_jsonl() {
+        let content = r#"{"CIDR":"8.152.0.0/13","ASN":37963,"Hits":1234}
+{"CIDR":"117.128.0.0/10","ASN":9808,"Hits":5678}
+"#;
+
+        let routes = parse_routes_jsonl(content).unwrap();
+
+        assert_eq!(routes.len(), 2);
+        assert_eq!(
+            routes[0].network,
+            "8.152.0.0/13".parse::<IpNet>().unwrap()
+        );
+        assert_eq!(routes[0].asn, 37963);
+        assert_eq!(routes[0].hits, 1234);
+    }
+
+    #[test]
+    fn test_invalid_cidr_is_rejected() {
+        let content = r#"{"CIDR":"not-a-cidr","ASN":37963,"Hits":1234}
+"#;
+
+        assert!(parse_routes_jsonl(content).is_err());
+    }
+
+    #[test]
+    fn test_ipv6_cidr_is_supported_by_parser() {
+        let content = r#"{"CIDR":"2001:db8::/32","ASN":64500,"Hits":10}
+"#;
+
+        let routes = parse_routes_jsonl(content).unwrap();
+
+        assert_eq!(routes.len(), 1);
+        assert_eq!(routes[0].asn, 64500);
     }
 }
