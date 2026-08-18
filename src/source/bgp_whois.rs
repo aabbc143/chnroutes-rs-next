@@ -47,8 +47,7 @@ mod tests {
 
     #[test]
     fn test_parse_asn_whois_line() {
-        let line =
-            "37963  |        |           | CN | APNIC    | 2001-03-27 | Alibaba Cloud";
+        let line = "37963  |        |           | CN | APNIC    | 2001-03-27 | Alibaba Cloud";
 
         let record = parse_asn_whois_line(line).unwrap();
 
@@ -60,8 +59,7 @@ mod tests {
 
     #[test]
     fn test_parse_whois_with_empty_prefix_fields() {
-        let line =
-            "9808   |        |           | CN | APNIC    | 2002-08-09 | China Mobile";
+        let line = "9808   |        |           | CN | APNIC    | 2002-08-09 | China Mobile";
 
         let record = parse_asn_whois_line(line).unwrap();
 
@@ -107,16 +105,14 @@ mod tests {
 
     #[test]
     fn test_empty_country_is_rejected() {
-        let line =
-            "37963  |        |           |    | APNIC    | 2001-03-27 | Alibaba Cloud";
+        let line = "37963  |        |           |    | APNIC    | 2001-03-27 | Alibaba Cloud";
 
         assert!(parse_asn_whois_line(line).is_err());
     }
 
     #[test]
     fn test_empty_registry_is_rejected() {
-        let line =
-            "37963  |        |           | CN |          | 2001-03-27 | Alibaba Cloud";
+        let line = "37963  |        |           | CN |          | 2001-03-27 | Alibaba Cloud";
 
         assert!(parse_asn_whois_line(line).is_err());
     }
