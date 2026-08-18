@@ -32,7 +32,7 @@ pub fn parse_asns_csv(content: &str) -> crate::error::Result<Vec<BgpAsnRecord>> 
     reader
         .deserialize()
         .collect::<Result<Vec<_>, _>>()
-        .map_err(Into::into)
+        .map_err(|_| crate::error::Error::InvalidTarget)
 }
 
 #[cfg(test)]
