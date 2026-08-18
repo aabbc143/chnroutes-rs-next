@@ -69,11 +69,9 @@ AS4134,"China Telecom Backbone",Eyeball
         let records = parse_asns_csv(content).unwrap();
 
         assert_eq!(records.len(), 3);
-
         assert_eq!(records[0].asn, "AS37963");
         assert_eq!(records[0].name, "Hangzhou Alibaba Advertising Co.,Ltd.");
         assert_eq!(records[0].class, "Eyeball");
-
         assert_eq!(records[1].asn, "AS9808");
         assert_eq!(records[2].asn, "AS4134");
     }
@@ -131,20 +129,13 @@ AS12345,"Example Network, Inc.",Unknown
 
     #[test]
     fn test_classify_network_class() {
-        assert_eq!(
-            classify_network_class("Eyeball"),
-            BgpNetworkClass::Eyeball
-        );
-
+        assert_eq!(classify_network_class("Eyeball"), BgpNetworkClass::Eyeball);
         assert_eq!(classify_network_class("Hosting"), BgpNetworkClass::Hosting);
-
         assert_eq!(
             classify_network_class("Server Hosting"),
             BgpNetworkClass::Hosting
         );
-
         assert_eq!(classify_network_class("Unknown"), BgpNetworkClass::Unknown);
-
         assert_eq!(
             classify_network_class("something-else"),
             BgpNetworkClass::Unknown
