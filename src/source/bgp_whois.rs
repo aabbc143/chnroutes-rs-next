@@ -9,7 +9,7 @@ pub struct BgpAsnWhois {
 pub fn parse_asn_whois_line(line: &str) -> crate::error::Result<BgpAsnWhois> {
     let fields: Vec<_> = line.split('|').map(str::trim).collect();
 
-    if fields.len() < 8 {
+    if fields.len() < 7 {
         return Err(crate::error::Error::InvalidTarget);
     }
 
@@ -17,9 +17,9 @@ pub fn parse_asn_whois_line(line: &str) -> crate::error::Result<BgpAsnWhois> {
         .parse::<u32>()
         .map_err(|_| crate::error::Error::InvalidTarget)?;
 
-    let country = fields[4].to_string();
-    let registry = fields[5].to_string();
-    let name = fields[7..].join(" | ");
+    let country = fields[3].to_string();
+    let registry = fields[4].to_string();
+    let name = fields[6..].join(" | ");
 
     if country.is_empty() || registry.is_empty() || name.is_empty() {
         return Err(crate::error::Error::InvalidTarget);
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn test_short_whois_line_is_rejected() {
-        let line = "37963 | | | | CN | APNIC | 2001-03-27";
+        let line = "37963 | | | CN | APNIC | 2001-03-27";
 
         assert!(parse_asn_whois_line(line).is_err());
     }
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_empty_name_is_rejected() {
-        let line = "37963 | | | | CN | APNIC | 2001-03-27 |";
+        let line = "37963 | | | CN | APNIC | 2001-03-27 |";
 
         assert!(parse_asn_whois_line(line).is_err());
     }
