@@ -7,6 +7,25 @@ pub struct BgpAsnRecord {
     pub class: String,
 }
 
+impl BgpAsnRecord {
+    pub fn asn_number(&self) -> crate::error::Result<u32> {
+        parse_asn(&self.asn)
+    }
+}
+
+pub fn parse_asn(value: &str) -> crate::error::Result<u32> {
+    let value = value.trim();
+
+    let number = value
+        .strip_prefix("AS")
+        .or_else(|| value.strip_prefix("as"))
+        .unwrap_or(value);
+
+    number
+        .parse::<u32>()
+        .map_err(|_| crate::error::Error::InvalidTarget)
+}
+
 pub fn parse_asns_csv(content: &str) -> crate::error::Result<Vec<BgpAsnRecord>> {
     let mut reader = csv::Reader::from_reader(content.as_bytes());
 
@@ -60,5 +79,45 @@ AS12345,"Example Network, Inc.",Unknown
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].asn, "AS12345");
         assert_eq!(records[0].name, "Example Network, Inc.");
+    }
+
+    #[test]
+    fn test_parse_asn() {
+        assert_eq!(parse_asn("AS37963").unwrap(), 37963);
+        assert_eq!(parse_asn("AS9808").unwrap(), 9808);
+        assert_eq!(parse_asn("AS4134").unwrap(), 4134);
+    }
+
+    #[test]
+    fn test_parse_asn_accepts_lowercase_prefix() {
+        assert_eq!(parse_asn("as37963").unwrap(), 37963);
+    }
+
+    #[test]
+    fn test_parse_asn_accepts_numeric_value() {
+        assert_eq!(parse_asn("37963").unwrap(), 37963);
+    }
+
+    #[test]
+    fn test_parse_asn_trims_whitespace() {
+        assert_eq!(parse_asn("  AS37963  ").unwrap(), 37963);
+    }
+
+    #[test]
+    fn test_parse_invalid_asn() {
+        assert!(parse_asn("AS-not-a-number").is_err());
+        assert!(parse_asn("").is_err());
+        assert!(parse_asn("AS").is_err());
+    }
+
+    #[test]
+    fn test_asn_record_number() {
+        let record = BgpAsnRecord {
+            asn: "AS37963".to_string(),
+            name: "Example".to_string(),
+            class: "Eyeball".to_string(),
+        };
+
+        assert_eq!(record.asn_number().unwrap(), 37963);
     }
 }
