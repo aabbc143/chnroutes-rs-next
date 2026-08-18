@@ -57,13 +57,24 @@ pub fn parse_routes_jsonl(content: &str) -> crate::error::Result<Vec<BgpRoute>> 
         .collect()
 }
 
+pub fn filter_ipv4_routes(routes: Vec<BgpRoute>) -> Vec<BgpRoute> {
+    routes
+        .into_iter()
+        .filter(|route| matches!(route.network, IpNet::V4(_)))
+        .collect()
+}
+
+pub fn parse_ipv4_routes_jsonl(content: &str) -> crate::error::Result<Vec<BgpRoute>> {
+    let routes = parse_routes_jsonl(content)?;
+    Ok(filter_ipv4_routes(routes))
+}
+
 pub fn fetch_table_jsonl() -> crate::error::Result<String> {
     let client = reqwest::blocking::Client::builder()
         .user_agent(BGP_USER_AGENT)
         .build()?;
 
     let response = client.get(BGP_TABLE_URL).send()?;
-
     let response = response.error_for_status()?;
 
     Ok(response.text()?)
@@ -99,6 +110,16 @@ pub fn fetch_routes_cached(cache: &BgpCache) -> crate::error::Result<Vec<BgpRout
 pub fn fetch_routes() -> crate::error::Result<Vec<BgpRoute>> {
     let cache = BgpCache::from_default_path()?;
     fetch_routes_cached(&cache)
+}
+
+pub fn fetch_ipv4_routes_cached(cache: &BgpCache) -> crate::error::Result<Vec<BgpRoute>> {
+    let content = fetch_table_jsonl_cached(cache)?;
+    parse_ipv4_routes_jsonl(&content)
+}
+
+pub fn fetch_ipv4_routes() -> crate::error::Result<Vec<BgpRoute>> {
+    let cache = BgpCache::from_default_path()?;
+    fetch_ipv4_routes_cached(&cache)
 }
 
 #[cfg(test)]
@@ -171,7 +192,10 @@ mod tests {
         let routes = parse_routes_jsonl(content).unwrap();
 
         assert_eq!(routes.len(), 2);
-        assert_eq!(routes[0].network, "8.152.0.0/13".parse::<IpNet>().unwrap());
+        assert_eq!(
+            routes[0].network,
+            "8.152.0.0/13".parse::<IpNet>().unwrap()
+        );
         assert_eq!(routes[0].asn, 37963);
         assert_eq!(routes[0].hits, 1234);
     }
@@ -193,5 +217,38 @@ mod tests {
 
         assert_eq!(routes.len(), 1);
         assert_eq!(routes[0].asn, 64500);
+    }
+
+    #[test]
+    fn test_filter_ipv4_routes() {
+        let content = r#"{"CIDR":"8.152.0.0/13","ASN":37963,"Hits":1234}
+{"CIDR":"117.128.0.0/10","ASN":9808,"Hits":5678}
+{"CIDR":"2001:db8::/32","ASN":64500,"Hits":10}
+"#;
+
+        let routes = parse_routes_jsonl(content).unwrap();
+
+        assert_eq!(routes.len(), 3);
+
+        let ipv4_routes = filter_ipv4_routes(routes);
+
+        assert_eq!(ipv4_routes.len(), 2);
+        assert!(ipv4_routes
+            .iter()
+            .all(|route| matches!(route.network, IpNet::V4(_))));
+    }
+
+    #[test]
+    fn test_parse_ipv4_routes_jsonl() {
+        let content = r#"{"CIDR":"8.152.0.0/13","ASN":37963,"Hits":1234}
+{"CIDR":"2001:db8::/32","ASN":64500,"Hits":10}
+{"CIDR":"117.128.0.0/10","ASN":9808,"Hits":5678}
+"#;
+
+        let routes = parse_ipv4_routes_jsonl(content).unwrap();
+
+        assert_eq!(routes.len(), 2);
+        assert_eq!(routes[0].asn, 37963);
+        assert_eq!(routes[1].asn, 9808);
     }
 }
