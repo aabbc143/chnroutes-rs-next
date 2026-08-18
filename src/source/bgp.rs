@@ -70,10 +70,7 @@ pub fn parse_ipv4_routes_jsonl(content: &str) -> crate::error::Result<Vec<BgpRou
     Ok(filter_ipv4_routes(routes))
 }
 
-pub fn filter_direct_routes(
-    routes: Vec<BgpRoute>,
-    classifier: &AsnClassifier,
-) -> Vec<IpNet> {
+pub fn filter_direct_routes(routes: Vec<BgpRoute>, classifier: &AsnClassifier) -> Vec<IpNet> {
     routes
         .into_iter()
         .filter(|route| classifier.is_direct(route.asn))
@@ -227,10 +224,7 @@ mod tests {
         let routes = parse_routes_jsonl(content).unwrap();
 
         assert_eq!(routes.len(), 2);
-        assert_eq!(
-            routes[0].network,
-            "8.152.0.0/13".parse::<IpNet>().unwrap()
-        );
+        assert_eq!(routes[0].network, "8.152.0.0/13".parse::<IpNet>().unwrap());
         assert_eq!(routes[0].asn, 37963);
         assert_eq!(routes[0].hits, 1234);
     }
@@ -327,9 +321,6 @@ mod tests {
         let direct = parse_direct_ipv4_routes_jsonl(content, &classifier).unwrap();
 
         assert_eq!(direct.len(), 1);
-        assert_eq!(
-            direct[0],
-            "8.152.0.0/13".parse::<IpNet>().unwrap()
-        );
+        assert_eq!(direct[0], "8.152.0.0/13".parse::<IpNet>().unwrap());
     }
 }
