@@ -13,7 +13,7 @@ pub fn build_evidence(
     Some(BgpAsnEvidence {
         asn: route.asn,
         name: record.name.clone(),
-        class: record.class.clone(),
+        network_class: record.class.clone(),
     })
 }
 
