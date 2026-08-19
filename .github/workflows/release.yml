@@ -41,5 +41,6 @@ jobs:
         with:
           bin: chnroutes-rs-next
           target: ${{ matrix.target }}
+          features: bin
           archive: $bin-$target
           token: ${{ secrets.GITHUB_TOKEN }}
