@@ -19,10 +19,7 @@ pub fn build_evidence(
     })
 }
 
-pub fn classify_route(
-    route: &BgpRoute,
-    asn_index: &HashMap<u32, BgpAsnRecord>,
-) -> bool {
+pub fn classify_route(route: &BgpRoute, asn_index: &HashMap<u32, BgpAsnRecord>) -> bool {
     build_evidence(route, asn_index).is_some()
 }
 
@@ -32,11 +29,7 @@ mod tests {
     use std::str::FromStr;
 
     fn route() -> BgpRoute {
-        BgpRoute::new(
-            ipnet::IpNet::from_str("1.0.1.0/24").unwrap(),
-            4134,
-            100,
-        )
+        BgpRoute::new(ipnet::IpNet::from_str("1.0.1.0/24").unwrap(), 4134, 100)
     }
 
     fn index() -> HashMap<u32, BgpAsnRecord> {
