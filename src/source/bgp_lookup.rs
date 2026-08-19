@@ -1,4 +1,4 @@
-use super::bgp::{BgpRoute, BgpPrefix};
+use super::bgp::{BgpPrefix, BgpRoute};
 use super::bgp_asn::BgpAsnRecord;
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -24,11 +24,7 @@ mod tests {
     use std::str::FromStr;
 
     fn route() -> BgpRoute {
-        BgpRoute::new(
-            ipnet::IpNet::from_str("1.0.1.0/24").unwrap(),
-            4134,
-            100,
-        )
+        BgpRoute::new(ipnet::IpNet::from_str("1.0.1.0/24").unwrap(), 4134, 100)
     }
 
     fn record() -> BgpAsnRecord {
