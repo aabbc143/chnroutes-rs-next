@@ -32,6 +32,8 @@ mod tests {
             asn: "AS4134".to_string(),
             name: "China Telecom".to_string(),
             class: "Eyeball".to_string(),
+            country: "CN".to_string(),
+            registry: "APNIC".to_string(),
         }
     }
 
@@ -58,7 +60,10 @@ mod tests {
         let prefix = lookup_prefix(&route());
 
         assert_eq!(prefix.asn, 4134);
-        assert_eq!(prefix.prefix, ipnet::IpNet::from_str("1.0.1.0/24").unwrap());
+        assert_eq!(
+            prefix.prefix,
+            ipnet::IpNet::from_str("1.0.1.0/24").unwrap()
+        );
     }
 
     #[test]
