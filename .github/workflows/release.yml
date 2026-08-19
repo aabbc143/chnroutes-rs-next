@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-release:
-    name: Build (${{ matrix.target }})
+    name: Build (${{ matrix.asset_name }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -18,12 +18,20 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: chnroutes-rs-next
+            binary_name: chnroutes-rs-next
             asset_name: chnroutes-rs-next-x86_64-unknown-linux-gnu.tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: chnroutes-rs-next.exe
+            binary_name: chnroutes-rs-next.exe
             asset_name: chnroutes-rs-next-x86_64-pc-windows-msvc.zip
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary_name: chnroutes-rs-next
+            asset_name: chnroutes-rs-next-aarch64-apple-darwin.tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            binary_name: chnroutes-rs-next
+            asset_name: chnroutes-rs-next-x86_64-apple-darwin.tar.gz
 
     steps:
       - name: Checkout repository
@@ -43,16 +51,18 @@ jobs:
       - name: Build binary
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Package assets (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Package Asset (Unix)
+        if: matrix.os != 'windows-latest'
         run: |
-          tar -czf ${{ matrix.asset_name }} -C target/${{ matrix.target }}/release ${{ matrix.artifact_name }}
+          cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} ./
+          tar -czf ${{ matrix.asset_name }} ${{ matrix.binary_name }}
 
-      - name: Package assets (Windows)
+      - name: Package Asset (Windows)
         if: matrix.os == 'windows-latest'
         shell: powershell
         run: |
-          Compress-Archive -Path "target\${{ matrix.target }}\release\${{ matrix.artifact_name }}" -DestinationPath "${{ matrix.asset_name }}"
+          Copy-Item "target\${{ matrix.target }}\release\${{ matrix.binary_name }}" -Destination ".\"
+          Compress-Archive -Path ${{ matrix.binary_name }} -DestinationPath ${{ matrix.asset_name }}
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
