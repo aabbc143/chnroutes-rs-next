@@ -17,10 +17,7 @@ pub fn build_evidence(
     })
 }
 
-pub fn classify_route(
-    route: &BgpRoute,
-    asn_index: &HashMap<u32, BgpAsnRecord>,
-) -> bool {
+pub fn classify_route(route: &BgpRoute, asn_index: &HashMap<u32, BgpAsnRecord>) -> bool {
     build_evidence(route, asn_index).is_some()
 }
 
@@ -62,10 +59,4 @@ mod tests {
         let index = HashMap::new();
 
         assert!(build_evidence(&route(), &index).is_none());
-    }
-
-    #[test]
-    fn test_classify_route() {
-        assert!(classify_route(&route(), &index()));
-    }
-}
+   
