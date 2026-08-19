@@ -8,11 +8,9 @@ pub mod bgp_asn;
 pub mod bgp_cache;
 pub mod bgp_decision;
 pub mod bgp_evidence;
-pub mod bgp_route;
 pub mod bgp_lookup;
+pub mod bgp_route;
 pub mod bgp_whois;
-pub mod chnroutes2;
-pub mod classifier;
 
 /// Data source used to generate the CN IP route list.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
