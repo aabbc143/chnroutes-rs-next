@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  upload-assets:
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -35,10 +35,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Build and Upload Assets
-        uses: rust-build/rust-build.action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Upload
+        uses: taiki-e/upload-rust-binary-action@v1
         with:
-          RUSTTARGET: ${{ matrix.target }}
-          ARCHIVE_NAME: chnroutes-rs-next-${{ matrix.target }}
+          bin: chnroutes-rs-next
+          target: ${{ matrix.target }}
+          archive: $bin-$target
+          token: ${{ secrets.GITHUB_TOKEN }}
