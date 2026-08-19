@@ -11,7 +11,7 @@ use tokio::sync::OnceCell;
 use crate::error::RouteOpError;
 pub static GATEWAY: OnceCell<(Option<Ipv4Addr>, Option<Ipv6Addr>)> = OnceCell::const_new();
 pub static INTERFACE_INDEX: OnceLock<u32> = OnceLock::new();
-use log::{error, info};
+use log::{error, info, warn};
 use netdev::get_default_interface;
 use once_fn::once;
 
@@ -125,10 +125,17 @@ pub async fn add_routes(routes: &[IpNet]) -> Result<()> {
             }
             Err(RouteOpError::RouteAlreadyExistsError) => {
                 ignored += 1;
+                index += 1;
             }
             Err(err) => {
-                error!("Error while adding {} th route: {:?}", index, err);
-                return Err(err);
+                warn!(
+                    "Failed to add {} th route ({:?}): {:?}, skipping.",
+                    index,
+                    routes.get(index - 1),
+                    err
+                );
+                ignored += 1;
+                index += 1;
             }
         }
     }
@@ -156,10 +163,17 @@ pub async fn del_routes(routes: &[IpNet]) -> Result<()> {
             }
             Err(RouteOpError::RouteNotFoundError) => {
                 ignored += 1;
+                index += 1;
             }
             Err(err) => {
-                error!("Error while removing {} th route: {:?}", index, err);
-                return Err(err);
+                warn!(
+                    "Failed to remove {} th route ({:?}): {:?}, skipping.",
+                    index,
+                    routes.get(index - 1),
+                    err
+                );
+                ignored += 1;
+                index += 1;
             }
         }
     }
