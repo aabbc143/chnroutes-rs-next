@@ -11,7 +11,7 @@ use tokio::sync::OnceCell;
 use crate::error::RouteOpError;
 pub static GATEWAY: OnceCell<(Option<Ipv4Addr>, Option<Ipv6Addr>)> = OnceCell::const_new();
 pub static INTERFACE_INDEX: OnceLock<u32> = OnceLock::new();
-use log::{error, info, warn};
+use log::{info, warn};
 use netdev::get_default_interface;
 use once_fn::once;
 
