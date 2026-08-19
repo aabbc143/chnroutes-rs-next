@@ -1,55 +1,24 @@
-# chnroutes-rs
+# chnroutes-rs-next
 
 简体中文 | [English](./README_en.md)
 
-[chnroutes](https://github.com/fivesheep/chnroutes) 的 Rewrite it in Rust 版本。
+[chnroutes-rs](https://github.com/lxl66566/chnroutes-rs) 的现代化分支与重构版本。专注于高效生成中国大陆 IP 路由表及 BGP ASN 规则，具备多源融合、CIDR 聚合优化与系统路由表快速注入能力。
 
-- 本地缓存路由信息，每 7 天更新
-- 调用 API，快速（windows 1w 条写入仅需 30ms）
+## 核心特性
+
+* **多数据源支持**：兼容 APNIC 官方分配数据与 [chnroutes2](https://github.com/misakaio/chnroutes2) 高精聚合规则。
+* **APNIC + BGP 混合策略**：融合实时 BGP 路由表信息，兼顾网络覆盖率与大陆路由判定精准度。
+* **BGP ASN 精准分类**：支持根据自治系统号（ASN）对 IP 段进行归类，并自动标注国家与注册机构（Country / Registry）。
+* **高性能原生 API 写入**：直接调用系统 API 直写路由表（Windows 1w+ 条目写入仅需 30ms），摆脱传统臃肿脚本。
+* **全平台原生支持**：提供 Windows、Linux (GNU/MUSL) 及 macOS (Intel/Apple Silicon) 的全架构单文件二进制执行包。
 
 ## 安装
 
-有几种不同方法可以安装此程序，您可以选择其中**任意一种**。
+### 1. 下载预编译文件（推荐）
+直接前往本仓库的 [Releases](../../releases) 页面下载对应系统的二进制压缩包：
+* **Windows**: 解压 `chnroutes-rs-next-x86_64-pc-windows-msvc.zip`，将 `chnroutes-rs-next.exe` 放入 `C:\Windows\System32` 或任意 `PATH` 环境变量目录下。
+* **Linux / macOS**: 下载对应的 `.tar.gz` 压缩包解压，将二进制文件赋予执行权限并移至 `/usr/local/bin/`。
 
-- 在 [Releases](https://github.com/lxl66566/chnroutes-rs/releases) 中下载文件并解压，放入 `C:\Windows\System32`（如果您用的是 windows）或任意 `Path` 目录下。
-- 使用 [bpm](https://github.com/lxl66566/bpm)：
-  ```sh
-  bpm i https://github.com/lxl66566/chnroutes-rs -b chnroutes
-  ```
-- 使用 [scoop](https://scoop.sh/)：
-  ```sh
-  scoop bucket add absx https://github.com/absxsfriends/scoop-bucket
-  scoop install chnroutes-rs
-  ```
-- 使用 cargo（从源码编译）：
-  ```sh
-  cargo install chnroutes --features bin
-  ```
-  或 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall)：
-  ```sh
-  cargo binstall chnroutes
-  ```
-
-## 使用
-
-### 命令行
-
+### 2. 从源码编译
 ```sh
-chnroutes export -p windows         # 导出路由表操作脚本，与原版 chnroutes.py 功能几乎一致（不推荐使用）
-chnroutes up                        # 写入路由表项
-chnroutes down                      # 移除路由表项
-```
-
-由于在 `up` 和 `down` 时直接调用系统 API，速度非常快，建议直接使用此方式，而不是原版的导出脚本执行。此方式需要管理员/root 权限。
-
-### 库
-
-查看 [examples](./examples)
-
-## TODO
-
-- [ ] 换源（目前仅支持原版 APNIC，日后可添加更多）
-  - https://github.com/misakaio/chnroutes2
-  - https://github.com/Loyalsoldier/geoip
-  - https://github.com/oschwald/maxminddb-rust
-- [ ] other region support
+cargo install --git [https://github.com/aabbc143/chnroutes-rs-next](https://github.com/aabbc143/chnroutes-rs-next)
