@@ -26,8 +26,7 @@ pub fn parse_bgp_prefix(line: &str) -> crate::error::Result<BgpPrefix> {
         return Err(crate::error::Error::InvalidTarget);
     }
 
-    let prefix = IpNet::from_str(fields[0])
-        .map_err(|_| crate::error::Error::InvalidTarget)?;
+    let prefix = IpNet::from_str(fields[0]).map_err(|_| crate::error::Error::InvalidTarget)?;
 
     let asn = fields[1]
         .strip_prefix("AS")
@@ -46,10 +45,7 @@ mod tests {
     fn test_parse_bgp_prefix() {
         let prefix = parse_bgp_prefix("1.0.1.0/24 | AS4134").unwrap();
 
-        assert_eq!(
-            prefix.prefix,
-            IpNet::from_str("1.0.1.0/24").unwrap()
-        );
+        assert_eq!(prefix.prefix, IpNet::from_str("1.0.1.0/24").unwrap());
         assert_eq!(prefix.asn, 4134);
     }
 
@@ -77,10 +73,7 @@ mod tests {
 
     #[test]
     fn test_prefix_contains_ip() {
-        let prefix = BgpPrefix::new(
-            IpNet::from_str("1.0.1.0/24").unwrap(),
-            4134,
-        );
+        let prefix = BgpPrefix::new(IpNet::from_str("1.0.1.0/24").unwrap(), 4134);
 
         assert!(prefix.contains(IpAddr::from_str("1.0.1.1").unwrap()));
         assert!(!prefix.contains(IpAddr::from_str("1.0.2.1").unwrap()));
