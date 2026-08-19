@@ -19,6 +19,23 @@ impl BgpPrefix {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BgpRoute {
+    pub network: IpNet,
+    pub asn: u32,
+    pub hits: u64,
+}
+
+impl BgpRoute {
+    pub fn new(network: IpNet, asn: u32, hits: u64) -> Self {
+        Self {
+            network,
+            asn,
+            hits,
+        }
+    }
+}
+
 pub fn parse_bgp_prefix(line: &str) -> crate::error::Result<BgpPrefix> {
     let fields: Vec<_> = line.split('|').map(str::trim).collect();
 
@@ -26,7 +43,8 @@ pub fn parse_bgp_prefix(line: &str) -> crate::error::Result<BgpPrefix> {
         return Err(crate::error::Error::InvalidTarget);
     }
 
-    let prefix = IpNet::from_str(fields[0]).map_err(|_| crate::error::Error::InvalidTarget)?;
+    let prefix =
+        IpNet::from_str(fields[0]).map_err(|_| crate::error::Error::InvalidTarget)?;
 
     let asn = fields[1]
         .strip_prefix("AS")
@@ -35,6 +53,48 @@ pub fn parse_bgp_prefix(line: &str) -> crate::error::Result<BgpPrefix> {
         .ok_or(crate::error::Error::InvalidTarget)?;
 
     Ok(BgpPrefix::new(prefix, asn))
+}
+
+pub fn parse_ipv4_routes_jsonl(content: &str) -> crate::error::Result<Vec<BgpRoute>> {
+    let mut routes = Vec::new();
+
+    for line in content.lines() {
+        let line = line.trim();
+
+        if line.is_empty() {
+            continue;
+        }
+
+        let value: serde_json::Value =
+            serde_json::from_str(line).map_err(|_| crate::error::Error::InvalidTarget)?;
+
+        let cidr = value
+            .get("CIDR")
+            .and_then(|value| value.as_str())
+            .ok_or(crate::error::Error::InvalidTarget)?;
+
+        let asn = value
+            .get("ASN")
+            .and_then(|value| value.as_u64())
+            .and_then(|value| u32::try_from(value).ok())
+            .ok_or(crate::error::Error::InvalidTarget)?;
+
+        let hits = value
+            .get("Hits")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0);
+
+        let network =
+            IpNet::from_str(cidr).map_err(|_| crate::error::Error::InvalidTarget)?;
+
+        if !network.addr().is_ipv4() {
+            return Err(crate::error::Error::InvalidTarget);
+        }
+
+        routes.push(BgpRoute::new(network, asn, hits));
+    }
+
+    Ok(routes)
 }
 
 #[cfg(test)]
@@ -77,5 +137,46 @@ mod tests {
 
         assert!(prefix.contains(IpAddr::from_str("1.0.1.1").unwrap()));
         assert!(!prefix.contains(IpAddr::from_str("1.0.2.1").unwrap()));
+    }
+
+    #[test]
+    fn test_parse_ipv4_routes_jsonl() {
+        let content = r#"{"CIDR":"117.128.0.0/10","ASN":9808,"Hits":5678}
+{"CIDR":"223.122.0.0/15","ASN":4515,"Hits":999}"#;
+
+        let routes = parse_ipv4_routes_jsonl(content).unwrap();
+
+        assert_eq!(routes.len(), 2);
+        assert_eq!(routes[0].asn, 9808);
+        assert_eq!(routes[0].hits, 5678);
+        assert_eq!(
+            routes[0].network,
+            IpNet::from_str("117.128.0.0/10").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_parse_ipv4_routes_jsonl_skips_empty_lines() {
+        let content = r#"
+{"CIDR":"117.128.0.0/10","ASN":9808,"Hits":5678}
+
+"#;
+
+        let routes = parse_ipv4_routes_jsonl(content).unwrap();
+
+        assert_eq!(routes.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_ipv4_routes_jsonl_rejects_invalid_json() {
+        assert!(parse_ipv4_routes_jsonl(r#"{"CIDR":"invalid"}"#).is_err());
+    }
+
+    #[test]
+    fn test_parse_ipv4_routes_jsonl_rejects_missing_asn() {
+        assert!(
+            parse_ipv4_routes_jsonl(r#"{"CIDR":"117.128.0.0/10"}"#)
+                .is_err()
+        );
     }
 }
