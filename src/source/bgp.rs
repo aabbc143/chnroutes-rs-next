@@ -28,11 +28,7 @@ pub struct BgpRoute {
 
 impl BgpRoute {
     pub fn new(network: IpNet, asn: u32, hits: u64) -> Self {
-        Self {
-            network,
-            asn,
-            hits,
-        }
+        Self { network, asn, hits }
     }
 }
 
@@ -43,8 +39,7 @@ pub fn parse_bgp_prefix(line: &str) -> crate::error::Result<BgpPrefix> {
         return Err(crate::error::Error::InvalidTarget);
     }
 
-    let prefix =
-        IpNet::from_str(fields[0]).map_err(|_| crate::error::Error::InvalidTarget)?;
+    let prefix = IpNet::from_str(fields[0]).map_err(|_| crate::error::Error::InvalidTarget)?;
 
     let asn = fields[1]
         .strip_prefix("AS")
@@ -84,8 +79,7 @@ pub fn parse_ipv4_routes_jsonl(content: &str) -> crate::error::Result<Vec<BgpRou
             .and_then(|value| value.as_u64())
             .unwrap_or(0);
 
-        let network =
-            IpNet::from_str(cidr).map_err(|_| crate::error::Error::InvalidTarget)?;
+        let network = IpNet::from_str(cidr).map_err(|_| crate::error::Error::InvalidTarget)?;
 
         if !network.addr().is_ipv4() {
             return Err(crate::error::Error::InvalidTarget);
@@ -174,9 +168,6 @@ mod tests {
 
     #[test]
     fn test_parse_ipv4_routes_jsonl_rejects_missing_asn() {
-        assert!(
-            parse_ipv4_routes_jsonl(r#"{"CIDR":"117.128.0.0/10"}"#)
-                .is_err()
-        );
+        assert!(parse_ipv4_routes_jsonl(r#"{"CIDR":"117.128.0.0/10"}"#).is_err());
     }
 }
