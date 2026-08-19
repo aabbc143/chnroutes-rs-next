@@ -2,7 +2,7 @@
 
 简体中文 | [English](./README_en.md)
 
-[chnroutes-rs](https://github.com/lxl66566/chnroutes-rs) 的现代化分支与重构版本。专注于高效生成中国大陆 IP 路由表及 BGP ASN 规则，具备多源融合、CIDR 聚合优化与系统路由表快速注入能力。
+[chnroutes-rs](https://github.com/aabbc143/chnroutes-rs-next) 的现代化分支与重构版本。专注于高效生成中国大陆 IP 路由表及 BGP ASN 规则，具备多源融合、CIDR 聚合优化与系统路由表快速注入能力。
 
 ## 核心特性
 
