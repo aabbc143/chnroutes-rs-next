@@ -11,10 +11,12 @@ pub fn build_evidence(
     let record = asn_index.get(&route.asn)?;
 
     Some(BgpAsnEvidence {
-        asn: route.asn,
-        name: record.name.clone(),
-        network_class: record.class.clone(),
-    })
+    asn: record.asn.clone(),
+    name: record.name.clone(),
+    network_class: record.class.clone(),
+    country: record.country.clone(),
+    registry: record.registry.clone(),
+})
 }
 
 pub fn classify_route(route: &BgpRoute, asn_index: &HashMap<u32, BgpAsnRecord>) -> bool {
