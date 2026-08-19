@@ -28,23 +28,42 @@ pub fn build_asn_index(records: &[BgpAsnRecord]) -> HashMap<u32, BgpAsnRecord> {
 pub fn merge_with_whois(
     record: &BgpAsnRecord,
     whois: &super::bgp_whois::BgpAsnWhois,
-) -> BgpAsnEvidence {
-    super::bgp_evidence::merge_asn_evidence(record, whois)
+) -> crate::error::Result<BgpAsnEvidence> {
+    let asn = record
+        .asn_number()
+        .ok_or(crate::error::Error::InvalidTarget)?;
+
+    if asn != whois.asn {
+        return Err(crate::error::Error::InvalidTarget);
+    }
+
+    Ok(super::bgp_evidence::merge_asn_evidence(record, whois))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_asn_number() {
-        let record = BgpAsnRecord {
+    fn record() -> BgpAsnRecord {
+        BgpAsnRecord {
             asn: "AS4134".to_string(),
             name: "China Telecom".to_string(),
             class: "Eyeball".to_string(),
-        };
+        }
+    }
 
-        assert_eq!(record.asn_number(), Some(4134));
+    fn whois() -> super::super::bgp_whois::BgpAsnWhois {
+        super::super::bgp_whois::BgpAsnWhois {
+            asn: 4134,
+            country: "CN".to_string(),
+            registry: "APNIC".to_string(),
+            name: "CHINANET".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_asn_number() {
+        assert_eq!(record().asn_number(), Some(4134));
     }
 
     #[test]
@@ -72,11 +91,7 @@ mod tests {
     #[test]
     fn test_build_asn_index() {
         let records = vec![
-            BgpAsnRecord {
-                asn: "AS4134".to_string(),
-                name: "China Telecom".to_string(),
-                class: "Eyeball".to_string(),
-            },
+            record(),
             BgpAsnRecord {
                 asn: "AS9808".to_string(),
                 name: "China Mobile".to_string(),
@@ -92,24 +107,34 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_with_whois() {
-        let record = BgpAsnRecord {
-            asn: "AS4134".to_string(),
-            name: "China Telecom".to_string(),
-            class: "Eyeball".to_string(),
-        };
-
-        let whois = super::super::bgp_whois::BgpAsnWhois {
-            asn: 4134,
-            country: "CN".to_string(),
-            registry: "APNIC".to_string(),
-            name: "CHINANET".to_string(),
-        };
-
-        let evidence = merge_with_whois(&record, &whois);
+    fn test_merge_with_matching_whois() {
+        let evidence = merge_with_whois(&record(), &whois()).unwrap();
 
         assert_eq!(evidence.asn, 4134);
         assert_eq!(evidence.country, "CN");
         assert_eq!(evidence.network_class, "Eyeball");
+    }
+
+    #[test]
+    fn test_merge_rejects_mismatched_whois() {
+        let mismatched = super::super::bgp_whois::BgpAsnWhois {
+            asn: 9808,
+            country: "CN".to_string(),
+            registry: "APNIC".to_string(),
+            name: "China Mobile".to_string(),
+        };
+
+        assert!(merge_with_whois(&record(), &mismatched).is_err());
+    }
+
+    #[test]
+    fn test_merge_rejects_invalid_record_asn() {
+        let invalid = BgpAsnRecord {
+            asn: "invalid".to_string(),
+            name: "Unknown".to_string(),
+            class: "Unknown".to_string(),
+        };
+
+        assert!(merge_with_whois(&invalid, &whois()).is_err());
     }
 }
