@@ -44,6 +44,8 @@ mod tests {
             asn: "AS4134".to_string(),
             name: "China Telecom".to_string(),
             class: "Eyeball".to_string(),
+            country: "CN".to_string(),
+            registry: "APNIC".to_string(),
         };
 
         let whois = super::super::bgp_whois::BgpAsnWhois {
