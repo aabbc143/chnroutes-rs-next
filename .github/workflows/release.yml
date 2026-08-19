@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  upload-assets:
+  build-and-release:
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -18,29 +18,41 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-musl
+            asset_name: chnroutes-rs-next-x86_64-unknown-linux-gnu.tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-          - os: macos-latest
-            target: x86_64-apple-darwin
+            asset_name: chnroutes-rs-next-x86_64-pc-windows-msvc.zip
           - os: macos-latest
             target: aarch64-apple-darwin
+            asset_name: chnroutes-rs-next-aarch64-apple-darwin.tar.gz
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build and Upload
-        uses: taiki-e/upload-rust-binary-action@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          bin: chnroutes-rs-next
-          target: ${{ matrix.target }}
-          features: bin
-          archive: $bin-$target
-          token: ${{ secrets.GITHUB_TOKEN }}
+          targets: ${{ matrix.target }}
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }} --features bin
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar -czvf ../../../${{ matrix.asset_name }} chnroutes-rs-next
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          cd target/${{ matrix.target }}/release
+          Compress-Archive -Path chnroutes-rs-next.exe -DestinationPath ..\..\..\${{ matrix.asset_name }}
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.asset_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
