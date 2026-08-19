@@ -2,31 +2,26 @@ use std::collections::HashMap;
 
 use super::bgp::BgpRoute;
 use super::bgp_asn::BgpAsnRecord;
-use super::bgp_decision::{classify, BgpDecision};
-use super::bgp_evidence::BgpEvidence;
+use super::bgp_evidence::BgpAsnEvidence;
 
 pub fn build_evidence(
     route: &BgpRoute,
     asn_index: &HashMap<u32, BgpAsnRecord>,
-) -> Option<BgpEvidence> {
+) -> Option<BgpAsnEvidence> {
     let record = asn_index.get(&route.asn)?;
 
-    Some(BgpEvidence {
+    Some(BgpAsnEvidence {
         asn: route.asn,
-        asn_name: Some(record.name.clone()),
-        asn_class: Some(record.class.clone()),
-        network_type: None,
-        country: None,
-        registry: None,
-        source: Some("bgp".to_string()),
+        name: record.name.clone(),
+        class: record.class.clone(),
     })
 }
 
-pub fn classify_route(route: &BgpRoute, asn_index: &HashMap<u32, BgpAsnRecord>) -> BgpDecision {
-    match build_evidence(route, asn_index) {
-        Some(evidence) => classify(&evidence),
-        None => BgpDecision::Unknown,
-    }
+pub fn classify_route(
+    route: &BgpRoute,
+    asn_index: &HashMap<u32, BgpAsnRecord>,
+) -> bool {
+    build_evidence(route, asn_index).is_some()
 }
 
 #[cfg(test)]
@@ -58,13 +53,12 @@ mod tests {
         let evidence = build_evidence(&route(), &index()).unwrap();
 
         assert_eq!(evidence.asn, 4134);
-        assert_eq!(evidence.asn_name.as_deref(), Some("China Telecom"));
-        assert_eq!(evidence.asn_class.as_deref(), Some("Eyeball"));
-        assert_eq!(evidence.source.as_deref(), Some("bgp"));
+        assert_eq!(evidence.name, "China Telecom");
+        assert_eq!(evidence.class, "Eyeball");
     }
 
     #[test]
-    fn test_missing_asn_returns_none() {
+    fn test_missing_asn() {
         let index = HashMap::new();
 
         assert!(build_evidence(&route(), &index).is_none());
@@ -72,15 +66,6 @@ mod tests {
 
     #[test]
     fn test_classify_route() {
-        let decision = classify_route(&route(), &index());
-
-        assert_ne!(decision, BgpDecision::Unknown);
-    }
-
-    #[test]
-    fn test_missing_asn_is_unknown() {
-        let index = HashMap::new();
-
-        assert_eq!(classify_route(&route(), &index), BgpDecision::Unknown);
+        assert!(classify_route(&route(), &index()));
     }
 }
