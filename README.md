@@ -11,6 +11,11 @@
 * **BGP ASN 精准归类**：支持自治系统号查询与归属地（Country / Registry）标注。
 * **全平台原生构建**：提供 Windows、Linux (GNU/MUSL)、macOS 的预编译文件。
 
+## 系统前提与依赖
+
+1. **管理员权限**：Windows 修改系统路由表属于高权限操作，必须在**以管理员身份运行**的终端中启动。
+2. **VC++ 运行库**：若运行或启动时提示缺少 `VCRUNTIME140.dll`，请先下载并安装官方 [Microsoft Visual C++ Redistributable (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe)。
+
 ## 程序放置 (Windows)
 
 解压得到 `chnroutes-rs-next.exe`，按需选择：
@@ -19,8 +24,6 @@
 * **解压即用**：放在任意文件夹，在当前目录下按 `Shift + 鼠标右键` 打开终端，带上 `.\` 运行（如 `.\chnroutes-rs-next.exe up`）。
 
 ## 快速开始 (Windows)
-
-> **注意**：执行路由表写入（`up`）与清理（`down`）必须使用**管理员权限**打开终端。
 
 ### 常用命令
 
