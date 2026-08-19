@@ -11,15 +11,18 @@ pub fn build_evidence(
     let record = asn_index.get(&route.asn)?;
 
     Some(BgpAsnEvidence {
-    asn: record.asn.clone(),
-    name: record.name.clone(),
-    network_class: record.class.clone(),
-    country: record.country.clone(),
-    registry: record.registry.clone(),
-})
+        asn: record.asn.clone(),
+        name: record.name.clone(),
+        network_class: record.class.clone(),
+        country: record.country.clone(),
+        registry: record.registry.clone(),
+    })
 }
 
-pub fn classify_route(route: &BgpRoute, asn_index: &HashMap<u32, BgpAsnRecord>) -> bool {
+pub fn classify_route(
+    route: &BgpRoute,
+    asn_index: &HashMap<u32, BgpAsnRecord>,
+) -> bool {
     build_evidence(route, asn_index).is_some()
 }
 
@@ -29,7 +32,11 @@ mod tests {
     use std::str::FromStr;
 
     fn route() -> BgpRoute {
-        BgpRoute::new(ipnet::IpNet::from_str("1.0.1.0/24").unwrap(), 4134, 100)
+        BgpRoute::new(
+            ipnet::IpNet::from_str("1.0.1.0/24").unwrap(),
+            4134,
+            100,
+        )
     }
 
     fn index() -> HashMap<u32, BgpAsnRecord> {
@@ -41,6 +48,8 @@ mod tests {
                 asn: "AS4134".to_string(),
                 name: "China Telecom".to_string(),
                 class: "Eyeball".to_string(),
+                country: "CN".to_string(),
+                registry: "APNIC".to_string(),
             },
         );
 
@@ -51,9 +60,11 @@ mod tests {
     fn test_build_evidence() {
         let evidence = build_evidence(&route(), &index()).unwrap();
 
-        assert_eq!(evidence.asn, 4134);
+        assert_eq!(evidence.asn, "AS4134");
         assert_eq!(evidence.name, "China Telecom");
-        assert_eq!(evidence.class, "Eyeball");
+        assert_eq!(evidence.network_class, "Eyeball");
+        assert_eq!(evidence.country, "CN");
+        assert_eq!(evidence.registry, "APNIC");
     }
 
     #[test]
