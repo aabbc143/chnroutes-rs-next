@@ -7,6 +7,8 @@ pub struct BgpAsnRecord {
     pub asn: String,
     pub name: String,
     pub class: String,
+    pub country: String,
+    pub registry: String,
 }
 
 impl BgpAsnRecord {
@@ -49,6 +51,8 @@ mod tests {
             asn: "AS4134".to_string(),
             name: "China Telecom".to_string(),
             class: "Eyeball".to_string(),
+            country: "CN".to_string(),
+            registry: "APNIC".to_string(),
         }
     }
 
@@ -72,6 +76,8 @@ mod tests {
             asn: "as9808".to_string(),
             name: "China Mobile".to_string(),
             class: "Eyeball".to_string(),
+            country: "CN".to_string(),
+            registry: "APNIC".to_string(),
         };
 
         assert_eq!(record.asn_number(), Some(9808));
@@ -83,6 +89,8 @@ mod tests {
             asn: "invalid".to_string(),
             name: "Unknown".to_string(),
             class: "Unknown".to_string(),
+            country: "".to_string(),
+            registry: "".to_string(),
         };
 
         assert_eq!(record.asn_number(), None);
@@ -96,6 +104,8 @@ mod tests {
                 asn: "AS9808".to_string(),
                 name: "China Mobile".to_string(),
                 class: "Eyeball".to_string(),
+                country: "CN".to_string(),
+                registry: "APNIC".to_string(),
             },
         ];
 
@@ -133,6 +143,8 @@ mod tests {
             asn: "invalid".to_string(),
             name: "Unknown".to_string(),
             class: "Unknown".to_string(),
+            country: "".to_string(),
+            registry: "".to_string(),
         };
 
         assert!(merge_with_whois(&invalid, &whois()).is_err());
