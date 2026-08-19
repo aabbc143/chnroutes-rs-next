@@ -59,4 +59,10 @@ mod tests {
         let index = HashMap::new();
 
         assert!(build_evidence(&route(), &index).is_none());
-   
+    }
+
+    #[test]
+    fn test_classify_route() {
+        assert!(classify_route(&route(), &index()));
+    }
+}
