@@ -22,10 +22,7 @@ pub fn build_evidence(
     })
 }
 
-pub fn classify_route(
-    route: &BgpRoute,
-    asn_index: &HashMap<u32, BgpAsnRecord>,
-) -> BgpDecision {
+pub fn classify_route(route: &BgpRoute, asn_index: &HashMap<u32, BgpAsnRecord>) -> BgpDecision {
     match build_evidence(route, asn_index) {
         Some(evidence) => classify(&evidence),
         None => BgpDecision::Unknown,
