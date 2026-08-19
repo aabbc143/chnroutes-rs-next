@@ -11,7 +11,7 @@ pub fn build_evidence(
     let record = asn_index.get(&route.asn)?;
 
     Some(BgpAsnEvidence {
-        asn: record.asn.clone(),
+        asn: route.asn,
         name: record.name.clone(),
         network_class: record.class.clone(),
         country: record.country.clone(),
@@ -60,7 +60,7 @@ mod tests {
     fn test_build_evidence() {
         let evidence = build_evidence(&route(), &index()).unwrap();
 
-        assert_eq!(evidence.asn, "AS4134");
+        assert_eq!(evidence.asn, 4134);
         assert_eq!(evidence.name, "China Telecom");
         assert_eq!(evidence.network_class, "Eyeball");
         assert_eq!(evidence.country, "CN");
