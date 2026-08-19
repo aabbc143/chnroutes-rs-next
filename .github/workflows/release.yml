@@ -3,48 +3,54 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build and release
+  build-release:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          # Windows 64-bit
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-
-          # Linux 64-bit
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-
-          # macOS Intel
-          - os: macos-latest
-            target: x86_64-apple-darwin
-
-          # macOS Apple Silicon
-          - os: macos-latest
-            target: aarch64-apple-darwin
-
-    runs-on: ${{ matrix.os }}
+            artifact_name: chnroutes-rs-next
+            asset_name: chnroutes-rs-next-x86_64-unknown-linux-gnu.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: chnroutes-rs-next.exe
+            asset_name: chnroutes-rs-next-x86_64-pc-windows-msvc.zip
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Install Rust
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Build and upload
-        uses: taiki-e/upload-rust-binary-action@v1
         with:
-          bin: chnroutes
-          target: ${{ matrix.target }}
-          features: bin
-          tar: unix
-          zip: windows
-          include: LICENSE,README.md
+          targets: ${{ matrix.target }}
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package assets (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          tar -czf ${{ matrix.asset_name }} -C target/${{ matrix.target }}/release ${{ matrix.artifact_name }}
+
+      - name: Package assets (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          Compress-Archive -Path "target\${{ matrix.target }}\release\${{ matrix.artifact_name }}" -DestinationPath "${{ matrix.asset_name }}"
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.asset_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
