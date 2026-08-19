@@ -26,3 +26,8 @@ chnroutes-rs-next down
 
 # 导出 Windows 静态路由脚本
 chnroutes-rs-next export -p windows -o routes.bat
+
+## 常见问题
+
+* **提示缺失 `VCRUNTIME140.dll` 或报错无法启动**：
+  说明系统缺少 C++ 运行库，请下载并安装官方 [Microsoft Visual C++ Redistributable (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe) 后重新运行。
