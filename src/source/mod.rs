@@ -9,6 +9,7 @@ pub mod bgp_cache;
 pub mod bgp_decision;
 pub mod bgp_evidence;
 pub mod bgp_lookup;
+pub mod bgp_pipeline;
 pub mod bgp_route;
 pub mod bgp_whois;
 pub mod chnroutes2;
