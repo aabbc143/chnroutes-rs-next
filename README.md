@@ -11,6 +11,13 @@
 * **BGP ASN 精准归类**：支持自治系统号查询与归属地（Country / Registry）标注。
 * **全平台原生构建**：提供 Windows、Linux (GNU/MUSL)、macOS 的预编译文件。
 
+## 程序放置 (Windows)
+
+解压得到 `chnroutes-rs-next.exe`，按需选择：
+
+* **全局调用（推荐）**：直接复制到 `C:\Windows\System32\`，即可在任何目录下运行。
+* **解压即用**：放在任意文件夹，在当前目录下按 `Shift + 鼠标右键` 打开终端，带上 `.\` 运行（如 `.\chnroutes-rs-next.exe up`）。
+
 ## 快速开始 (Windows)
 
 > **注意**：执行路由表写入（`up`）与清理（`down`）必须使用**管理员权限**打开终端。
@@ -26,8 +33,3 @@ chnroutes-rs-next down
 
 # 导出 Windows 静态路由脚本
 chnroutes-rs-next export -p windows -o routes.bat
-
-## 常见问题
-
-* **提示缺失 `VCRUNTIME140.dll` 或报错无法启动**：
-  说明系统缺少 C++ 运行库，请下载并安装官方 [Microsoft Visual C++ Redistributable (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe) 后重新运行。
