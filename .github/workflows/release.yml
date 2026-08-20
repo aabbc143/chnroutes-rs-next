@@ -49,7 +49,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           tar -czvf ${{ matrix.asset_name }} \
-          -C target/${{ matrix.target }}/release chnroutes
+          -C target/${{ matrix.target }}/release chnroutes-rs-next
 
 
       - name: Package Windows
@@ -57,7 +57,7 @@ jobs:
         shell: powershell
         run: |
           Compress-Archive `
-          -Path target/${{ matrix.target }}/release/chnroutes.exe `
+          -Path target/${{ matrix.target }}/release/chnroutes-rs-next.exe `
           -DestinationPath ${{ matrix.asset_name }}
 
 
