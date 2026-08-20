@@ -1,79 +1,13 @@
-name: Release
+matrix:
+  include:
+    - os: ubuntu-latest
+      target: x86_64-unknown-linux-gnu
+      asset_name: chnroutes-rs-next-x86_64-unknown-linux-gnu.tar.gz
 
-on:
-  push:
-    tags:
-      - 'v*'
+    - os: windows-latest
+      target: x86_64-pc-windows-msvc
+      asset_name: chnroutes-rs-next-x86_64-pc-windows-msvc.zip
 
-permissions:
-  contents: write
-
-jobs:
-  build:
-    name: Build (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            asset: chnroutes-x86_64-linux.tar.gz
-
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-            asset: chnroutes-x86_64-linux-musl.tar.gz
-
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            asset: chnroutes-x86_64-windows.zip
-
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            asset: chnroutes-x86_64-macos.tar.gz
-
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            asset: chnroutes-arm64-macos.tar.gz
-
-
-    steps:
-
-      - uses: actions/checkout@v6
-
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-
-      - name: Build
-        run: |
-          cargo build --release --target ${{ matrix.target }} --features bin
-
-
-      - name: Package Linux/macOS
-        if: runner.os != 'Windows'
-        run: |
-          tar -czvf ${{ matrix.asset }} \
-          -C target/${{ matrix.target }}/release chnroutes
-
-
-      - name: Package Windows
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          Compress-Archive `
-          -Path target/${{ matrix.target }}/release/chnroutes.exe `
-          -DestinationPath ${{ matrix.asset }}
-
-
-      - name: Upload
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ matrix.asset }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - os: macos-latest
+      target: aarch64-apple-darwin
+      asset_name: chnroutes-rs-next-aarch64-apple-darwin.tar.gz
