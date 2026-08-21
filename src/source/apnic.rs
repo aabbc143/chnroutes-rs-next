@@ -109,15 +109,12 @@ fn load_builtin_data() -> crate::error::Result<Vec<IpNet>> {
 /// Only CN IPv4 networks are returned.
 /// IPv6 records are intentionally ignored.
 pub fn parse_ip_data(content: &str) -> Vec<IpNet> {
-
     content
         .lines()
         .filter_map(parse_record)
         .filter(|net| matches!(net, IpNet::V4(_)))
         .collect()
 }
-
-
 
 fn parse_record(line: &str) -> Option<IpNet> {
 
@@ -332,15 +329,8 @@ invalid
 
 
         for route in results {
-
-            assert!(
-                matches!(
-                    route,
-                    IpNet::V4(_)
-                )
-            );
-        }
-
+    assert!(matches!(route, IpNet::V4(_)));
+}
 
 
         assert_eq!(
