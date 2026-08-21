@@ -9,7 +9,7 @@ const CACHE_NAME: &str = "apnic";
 const CACHE_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const APNIC_URL: &str = "https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest";
 
-/// Fetch CN IP data from APNIC, using a 7-day cache.
+/// Fetch CN IPv4 data from APNIC, using a 7-day cache.
 ///
 /// When the network request fails, the built-in APNIC snapshot is used as a
 /// fallback. The fallback data is deliberately not written back to the cache,
@@ -69,12 +69,16 @@ fn load_builtin_data() -> crate::error::Result<Vec<IpNet>> {
     Ok(parse_ip_data(&content))
 }
 
-/// Parse APNIC delegated statistics and return CN IPv4/IPv6 networks.
+/// Parse APNIC delegated statistics and return CN IPv4 networks.
 ///
-/// Malformed records are ignored instead of causing the whole process to
-/// panic.
+/// IPv6 records are intentionally ignored because chnroutes is designed
+/// for IPv4 split tunneling.
 pub fn parse_ip_data(content: &str) -> Vec<IpNet> {
-    content.lines().filter_map(parse_record).collect()
+    content
+        .lines()
+        .filter_map(parse_record)
+        .filter(|net| net.is_ipv4())
+        .collect()
 }
 
 fn parse_record(line: &str) -> Option<IpNet> {
@@ -90,13 +94,19 @@ fn parse_record(line: &str) -> Option<IpNet> {
 
     match fields[2] {
         "ipv4" => parse_ipv4_record(fields[3], fields[4]),
-        "ipv6" => parse_ipv6_record(fields[3], fields[4]),
+        // Ignore IPv6 routes.
+        "ipv6" => None,
         _ => None,
     }
 }
 
 fn parse_ipv4_record(address: &str, count: &str) -> Option<IpNet> {
     let ip = IpAddr::from_str(address).ok()?;
+
+    if !ip.is_ipv4() {
+        return None;
+    }
+
     let count = count.parse::<u32>().ok()?;
 
     if count == 0 || !count.is_power_of_two() {
@@ -110,17 +120,6 @@ fn parse_ipv4_record(address: &str, count: &str) -> Option<IpNet> {
     }
 
     let prefix_len = 32 - host_bits as u8;
-
-    IpNet::new(ip, prefix_len).ok()
-}
-
-fn parse_ipv6_record(address: &str, prefix: &str) -> Option<IpNet> {
-    let ip = IpAddr::from_str(address).ok()?;
-    let prefix_len = prefix.parse::<u8>().ok()?;
-
-    if prefix_len > 128 {
-        return None;
-    }
 
     IpNet::new(ip, prefix_len).ok()
 }
@@ -149,14 +148,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_ipv6_record() {
-        assert_eq!(
-            parse_ipv6_record("2400:da00::", "32"),
-            Some(IpNet::from_str("2400:da00::/32").unwrap())
-        );
-    }
-
-    #[test]
     fn test_parse_ip_data() {
         let content = "\
 apnic|CN|ipv4|1.0.1.0|256|20110101|allocated
@@ -168,10 +159,9 @@ invalid
 
         let results = parse_ip_data(content);
 
-        assert_eq!(results.len(), 3);
+        assert_eq!(results.len(), 2);
         assert_eq!(results[0], IpNet::from_str("1.0.1.0/24").unwrap());
         assert_eq!(results[1], IpNet::from_str("1.0.2.0/23").unwrap());
-        assert_eq!(results[2], IpNet::from_str("2400:da00::/32").unwrap());
     }
 
     #[test]
@@ -180,6 +170,14 @@ invalid
         let results = parse_ip_data(&content);
 
         assert!(!results.is_empty());
-        assert_eq!(results[0], IpNet::from_str("1.0.1.0/24").unwrap());
+
+        for route in results {
+            assert!(route.is_ipv4());
+        }
+
+        assert_eq!(
+            parse_ipv4_record("1.0.1.0", "256"),
+            Some(IpNet::from_str("1.0.1.0/24").unwrap())
+        );
     }
 }
