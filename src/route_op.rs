@@ -4,7 +4,7 @@ use std::{
     sync::OnceLock,
 };
 
-use futures_util::{stream::FuturesOrdered, TryStreamExt};
+use futures_util::{stream::FuturesOrdered, StreamExt};
 use ipnet::IpNet;
 use log::{info, warn};
 use net_route::{Handle, Route};
@@ -88,8 +88,7 @@ fn get_interface_index() -> std::result::Result<u32, String> {
 /// The interface is detected only once, because all routes in one
 /// operation should use the same physical interface.
 fn interface_index() -> std::result::Result<u32, String> {
-    INTERFACE_INDEX
-        .get_or_init(|| get_interface_index().unwrap_or(0));
+    INTERFACE_INDEX.get_or_init(|| get_interface_index().unwrap_or(0));
 
     match INTERFACE_INDEX.get() {
         Some(0) => Err("Default Interface not found".to_string()),
@@ -130,8 +129,7 @@ pub async fn add_route(handle: &Handle, route: &IpNet) -> Result<()> {
         .await?
         .ok_or(RouteOpError::NoGatewayError)?;
 
-    let ifindex =
-        interface_index().map_err(RouteOpError::GetInterfaceError)?;
+    let ifindex = interface_index().map_err(RouteOpError::GetInterfaceError)?;
 
     let route_item = Route::new(route.addr(), route.prefix_len())
         .with_gateway(IpAddr::V4(gateway))
@@ -141,8 +139,7 @@ pub async fn add_route(handle: &Handle, route: &IpNet) -> Result<()> {
         Ok(_) => Ok(()),
 
         Err(err)
-            if err.kind() == std::io::ErrorKind::Other
-                && err.to_string().contains("exists") =>
+            if err.kind() == std::io::ErrorKind::Other && err.to_string().contains("exists") =>
         {
             Err(RouteOpError::RouteAlreadyExistsError)
         }
@@ -158,11 +155,9 @@ pub async fn del_route(handle: &Handle, route: &IpNet) -> Result<()> {
         return Ok(());
     }
 
-    let ifindex =
-        interface_index().map_err(RouteOpError::GetInterfaceError)?;
+    let ifindex = interface_index().map_err(RouteOpError::GetInterfaceError)?;
 
-    let route_item = Route::new(route.addr(), route.prefix_len())
-        .with_ifindex(ifindex);
+    let route_item = Route::new(route.addr(), route.prefix_len()).with_ifindex(ifindex);
 
     match handle.delete(&route_item).await {
         Ok(_) => Ok(()),
@@ -194,8 +189,7 @@ pub async fn add_routes(routes: &[IpNet]) -> Result<()> {
     //
     // This makes interface detection fail once, clearly, instead of
     // generating thousands of identical warnings.
-    let ifindex =
-        interface_index().map_err(RouteOpError::GetInterfaceError)?;
+    let ifindex = interface_index().map_err(RouteOpError::GetInterfaceError)?;
 
     info!("Using interface index {} for IPv4 routes.", ifindex);
 
@@ -234,10 +228,7 @@ pub async fn add_routes(routes: &[IpNet]) -> Result<()> {
         index += 1;
     }
 
-    info!(
-        "Routes added success, ignored: {}.",
-        ignored
-    );
+    info!("Routes added success, ignored: {}.", ignored);
 
     Ok(())
 }
@@ -257,13 +248,11 @@ pub async fn del_routes(routes: &[IpNet]) -> Result<()> {
         return Ok(());
     }
 
-    let ifindex =
-        interface_index().map_err(RouteOpError::GetInterfaceError)?;
+    let ifindex = interface_index().map_err(RouteOpError::GetInterfaceError)?;
 
     info!("Using interface index {} for IPv4 routes.", ifindex);
 
-    let handle =
-        Handle::new().map_err(|_| RouteOpError::HandleInitError)?;
+    let handle = Handle::new().map_err(|_| RouteOpError::HandleInitError)?;
 
     let mut futures = routes
         .iter()
@@ -296,10 +285,7 @@ pub async fn del_routes(routes: &[IpNet]) -> Result<()> {
         index += 1;
     }
 
-    info!(
-        "Routes removed success, ignored: {}.",
-        ignored
-    );
+    info!("Routes removed success, ignored: {}.", ignored);
 
     Ok(())
 }
@@ -324,20 +310,14 @@ mod tests {
     async fn test_add_remove_route_v4() {
         let handle = Handle::new().unwrap();
 
-        let destination =
-            IpAddr::V4(Ipv4Addr::new(123, 123, 123, 123));
+        let destination = IpAddr::V4(Ipv4Addr::new(123, 123, 123, 123));
 
-        let route =
-            IpNet::new(destination, 32).unwrap();
+        let route = IpNet::new(destination, 32).unwrap();
 
         let _ = del_route(&handle, &route).await;
 
-        add_route(&handle, &route)
-            .await
-            .unwrap();
+        add_route(&handle, &route).await.unwrap();
 
-        del_route(&handle, &route)
-            .await
-            .unwrap();
+        del_route(&handle, &route).await.unwrap();
     }
 }

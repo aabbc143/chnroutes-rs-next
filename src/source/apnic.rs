@@ -1,4 +1,3 @@
-```rust
 use std::{io::Cursor, net::IpAddr, str::FromStr, time::Duration};
 
 use ipnet::IpNet;
@@ -8,8 +7,7 @@ use crate::cache::Cache;
 
 const CACHE_NAME: &str = "apnic";
 const CACHE_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
-const APNIC_URL: &str =
-    "https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest";
+const APNIC_URL: &str = "https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest";
 
 /// Fetch CN IPv4 data from APNIC, using a 7-day cache.
 ///
@@ -163,21 +161,14 @@ invalid
 
         assert_eq!(results.len(), 2);
 
-        assert_eq!(
-            results[0],
-            IpNet::from_str("1.0.1.0/24").unwrap()
-        );
+        assert_eq!(results[0], IpNet::from_str("1.0.1.0/24").unwrap());
 
-        assert_eq!(
-            results[1],
-            IpNet::from_str("1.0.2.0/23").unwrap()
-        );
+        assert_eq!(results[1], IpNet::from_str("1.0.2.0/23").unwrap());
     }
 
     #[test]
     fn test_parse_ip_data_from_fixture() {
-        let content =
-            std::fs::read_to_string("tests_assets/apnic.txt").unwrap();
+        let content = std::fs::read_to_string("tests_assets/apnic.txt").unwrap();
 
         let results = parse_ip_data(&content);
 
@@ -193,4 +184,3 @@ invalid
         );
     }
 }
-```
