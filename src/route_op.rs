@@ -1,68 +1,115 @@
 use std::{
     net::{IpAddr, Ipv4Addr},
+    process::Command,
     sync::OnceLock,
 };
 
 use futures_util::{stream::FuturesOrdered, TryStreamExt};
 use ipnet::IpNet;
+use log::{info, warn};
 use net_route::{Handle, Route};
 use tokio::sync::OnceCell;
 
 use crate::error::RouteOpError;
 
-use log::{info, warn};
+type Result<T> = std::result::Result<T, RouteOpError>;
 
 pub static GATEWAY: OnceCell<Option<Ipv4Addr>> = OnceCell::const_new();
 pub static INTERFACE_INDEX: OnceLock<u32> = OnceLock::new();
 
-type Result<T> = std::result::Result<T, RouteOpError>;
-
-
-/// Get default interface index.
+/// Get the default physical IPv4 interface index.
 ///
-/// Windows: use default IPv4 route table.
-/// Other platforms: use netdev.
+/// On Windows, the VPN interface must not be selected as the default
+/// interface for CN routes. Therefore OpenVPN, WSL, vEthernet and
+/// loopback interfaces are explicitly excluded.
+///
+/// On non-Windows platforms, netdev is used to detect the default
+/// interface.
 #[cfg(target_os = "windows")]
 fn get_interface_index() -> std::result::Result<u32, String> {
-    use std::process::Command;
+    let script = r#"
+$routes = Get-NetRoute `
+    -AddressFamily IPv4 `
+    -DestinationPrefix '0.0.0.0/0' `
+    -ErrorAction Stop |
+    Where-Object {
+        $_.NextHop -ne '0.0.0.0' -and
+        $_.InterfaceAlias -notmatch 'OpenVPN|WSL|vEthernet|Loopback'
+    } |
+    Sort-Object RouteMetric, InterfaceMetric
 
-    let output = Command::new("powershell")
+if ($null -eq $routes) {
+    throw 'No suitable IPv4 default route found'
+}
+
+$routes |
+    Select-Object -First 1 -ExpandProperty ifIndex
+"#;
+
+    let output = Command::new("powershell.exe")
         .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
             "-Command",
-            "(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric | Select-Object -First 1).ifIndex"
+            script,
         ])
         .output()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Failed to execute PowerShell: {e}"))?;
 
-    let index = String::from_utf8_lossy(&output.stdout)
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "Failed to detect default interface: {}",
+            stderr.trim()
+        ));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let index = stdout
         .trim()
         .parse::<u32>()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Invalid interface index returned by PowerShell: {e}"))?;
 
     Ok(index)
 }
 
-
+/// Get the default interface index on non-Windows platforms.
 #[cfg(not(target_os = "windows"))]
 fn get_interface_index() -> std::result::Result<u32, String> {
     netdev::get_default_interface()
-        .map(|x| x.index)
+        .map(|interface| interface.index)
+        .map_err(|e| e.to_string())
 }
 
+/// Get the cached default interface index.
+///
+/// The interface is detected only once, because all routes in one
+/// operation should use the same physical interface.
+fn interface_index() -> std::result::Result<u32, String> {
+    INTERFACE_INDEX
+        .get_or_init(|| get_interface_index().unwrap_or(0));
 
-/// Get default IPv4 gateway.
+    match INTERFACE_INDEX.get() {
+        Some(0) => Err("Default Interface not found".to_string()),
+        Some(index) => Ok(*index),
+        None => Err("Default Interface not found".to_string()),
+    }
+}
+
+/// Get the default IPv4 gateway.
 pub async fn get_gateway(handle: &Handle) -> Result<Option<Ipv4Addr>> {
     let routes = handle
         .list()
         .await?
         .into_iter()
-        .filter(|r| r.gateway.is_some())
-        .filter(|r| r.destination.is_unspecified())
-        .filter_map(|r| r.gateway);
+        .filter(|route| route.gateway.is_some())
+        .filter(|route| route.destination.is_unspecified())
+        .filter_map(|route| route.gateway);
 
-
-    for ip in routes {
-        if let IpAddr::V4(ipv4) = ip {
+    for gateway in routes {
+        if let IpAddr::V4(ipv4) = gateway {
             return Ok(Some(ipv4));
         }
     }
@@ -70,174 +117,199 @@ pub async fn get_gateway(handle: &Handle) -> Result<Option<Ipv4Addr>> {
     Ok(None)
 }
 
-
 /// Add one IPv4 route entry.
 pub async fn add_route(handle: &Handle, route: &IpNet) -> Result<()> {
-
-    // Ignore IPv6 completely
-    if !route.addr().is_ipv4() {
+    // chnroutes is an IPv4 split-routing tool.
+    // IPv6 routes are intentionally ignored.
+    if !matches!(route, IpNet::V4(_)) {
         return Ok(());
     }
 
-
     let gateway = GATEWAY
-        .get_or_try_init(|| async {
-            get_gateway(handle).await
-        })
+        .get_or_try_init(|| async { get_gateway(handle).await })
         .await?
         .ok_or(RouteOpError::NoGatewayError)?;
 
+    let ifindex =
+        interface_index().map_err(RouteOpError::GetInterfaceError)?;
 
     let route_item = Route::new(route.addr(), route.prefix_len())
-        .with_gateway(IpAddr::from(gateway))
-        .with_ifindex(
-            get_interface_index()
-                .map_err(RouteOpError::GetInterfaceError)?
-        );
+        .with_gateway(IpAddr::V4(gateway))
+        .with_ifindex(ifindex);
 
+    match handle.add(&route_item).await {
+        Ok(_) => Ok(()),
 
-    let result = handle.add(&route_item).await;
-
-
-    if let Err(err) = result {
-
-        if err.kind() == std::io::ErrorKind::Other
-            && err.to_string().contains("exists")
+        Err(err)
+            if err.kind() == std::io::ErrorKind::Other
+                && err.to_string().contains("exists") =>
         {
-            return Err(RouteOpError::RouteAlreadyExistsError);
+            Err(RouteOpError::RouteAlreadyExistsError)
         }
 
-        return Err(err.into());
+        Err(err) => Err(err.into()),
     }
-
-
-    Ok(())
 }
-
-
 
 /// Delete one IPv4 route entry.
 pub async fn del_route(handle: &Handle, route: &IpNet) -> Result<()> {
-
-    if !route.addr().is_ipv4() {
+    // IPv6 routes are intentionally ignored.
+    if !matches!(route, IpNet::V4(_)) {
         return Ok(());
     }
 
+    let ifindex =
+        interface_index().map_err(RouteOpError::GetInterfaceError)?;
 
     let route_item = Route::new(route.addr(), route.prefix_len())
-        .with_ifindex(
-            get_interface_index()
-                .map_err(RouteOpError::GetInterfaceError)?
-        );
+        .with_ifindex(ifindex);
 
+    match handle.delete(&route_item).await {
+        Ok(_) => Ok(()),
 
-    let result = handle.delete(&route_item).await;
-
-
-    if let Err(err) = result {
-
-        if err.kind() == std::io::ErrorKind::NotFound {
-            return Err(RouteOpError::RouteNotFoundError);
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            Err(RouteOpError::RouteNotFoundError)
         }
 
-        return Err(err.into());
+        Err(err) => Err(err.into()),
     }
-
-
-    Ok(())
 }
 
-
-
+/// Add multiple IPv4 routes.
 pub async fn add_routes(routes: &[IpNet]) -> Result<()> {
-
     let routes: Vec<IpNet> = routes
         .iter()
-        .filter(|r| r.addr().is_ipv4())
+        .filter(|route| matches!(route, IpNet::V4(_)))
         .cloned()
         .collect();
 
-
     info!("Adding {} IPv4 routes...", routes.len());
 
+    if routes.is_empty() {
+        info!("No IPv4 routes to add.");
+        return Ok(());
+    }
+
+    // Detect the interface before adding routes.
+    //
+    // This makes interface detection fail once, clearly, instead of
+    // generating thousands of identical warnings.
+    let ifindex =
+        interface_index().map_err(RouteOpError::GetInterfaceError)?;
+
+    info!("Using interface index {} for IPv4 routes.", ifindex);
 
     let handle = Box::leak(Box::new(
-        Handle::new()
-            .map_err(|_| RouteOpError::HandleInitError)?
+        Handle::new().map_err(|_| RouteOpError::HandleInitError)?,
     ));
-
 
     let mut futures = routes
         .iter()
-        .map(|r| add_route(handle, r))
+        .map(|route| add_route(handle, route))
         .collect::<FuturesOrdered<_>>();
-
 
     let mut index = 1;
     let mut ignored = 0;
 
+    while let Some(result) = futures.next().await {
+        match result {
+            Ok(()) => {}
 
-    while let Some(result) = futures.try_next().await? {
+            Err(RouteOpError::RouteAlreadyExistsError) => {
+                ignored += 1;
+            }
+
+            Err(err) => {
+                warn!(
+                    "Failed to add {} th route ({:?}): {:?}, skipping.",
+                    index,
+                    routes.get(index - 1),
+                    err
+                );
+
+                ignored += 1;
+            }
+        }
 
         index += 1;
-
-        if result.is_err() {
-            ignored += 1;
-        }
     }
-
 
     info!(
         "Routes added success, ignored: {}.",
         ignored
     );
 
-
     Ok(())
 }
 
-
-
+/// Delete multiple IPv4 routes.
 pub async fn del_routes(routes: &[IpNet]) -> Result<()> {
-
-
     let routes: Vec<IpNet> = routes
         .iter()
-        .filter(|r| r.addr().is_ipv4())
+        .filter(|route| matches!(route, IpNet::V4(_)))
         .cloned()
         .collect();
 
-
     info!("Removing {} IPv4 routes...", routes.len());
 
+    if routes.is_empty() {
+        info!("No IPv4 routes to remove.");
+        return Ok(());
+    }
 
-    let handle = Handle::new()
-        .map_err(|_| RouteOpError::HandleInitError)?;
+    let ifindex =
+        interface_index().map_err(RouteOpError::GetInterfaceError)?;
 
+    info!("Using interface index {} for IPv4 routes.", ifindex);
+
+    let handle =
+        Handle::new().map_err(|_| RouteOpError::HandleInitError)?;
 
     let mut futures = routes
         .iter()
-        .map(|r| del_route(&handle, r))
+        .map(|route| del_route(&handle, route))
         .collect::<FuturesOrdered<_>>();
 
+    let mut index = 1;
+    let mut ignored = 0;
 
-    while let Some(_) = futures.try_next().await? {}
+    while let Some(result) = futures.next().await {
+        match result {
+            Ok(()) => {}
 
+            Err(RouteOpError::RouteNotFoundError) => {
+                ignored += 1;
+            }
+
+            Err(err) => {
+                warn!(
+                    "Failed to remove {} th route ({:?}): {:?}, skipping.",
+                    index,
+                    routes.get(index - 1),
+                    err
+                );
+
+                ignored += 1;
+            }
+        }
+
+        index += 1;
+    }
+
+    info!(
+        "Routes removed success, ignored: {}.",
+        ignored
+    );
 
     Ok(())
 }
 
-
-
 #[cfg(test)]
 mod tests {
-
     use super::*;
-
 
     #[tokio::test]
     async fn test_get_gateway() {
-
         let handle = Handle::new().unwrap();
 
         let result = get_gateway(&handle).await;
@@ -247,36 +319,25 @@ mod tests {
         dbg!(result.unwrap());
     }
 
-
-    async fn test_add_remove_route(dest: IpAddr) {
-
+    #[tokio::test]
+    #[ignore = "Run as Administrator"]
+    async fn test_add_remove_route_v4() {
         let handle = Handle::new().unwrap();
 
+        let destination =
+            IpAddr::V4(Ipv4Addr::new(123, 123, 123, 123));
 
-        let route = IpNet::new(dest, 32).unwrap();
-
+        let route =
+            IpNet::new(destination, 32).unwrap();
 
         let _ = del_route(&handle, &route).await;
-
 
         add_route(&handle, &route)
             .await
             .unwrap();
 
-
         del_route(&handle, &route)
             .await
             .unwrap();
-    }
-
-
-    #[tokio::test]
-    #[ignore = "Run as administrator"]
-    async fn test_add_remove_route_v4() {
-
-        test_add_remove_route(
-            IpAddr::from([123,123,123,123])
-        )
-        .await;
     }
 }
