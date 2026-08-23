@@ -1,3 +1,4 @@
+Markdown
 # chnroutes-rs-next
 
 `chnroutes` 的 Rust 重构与增强版本，用于生成和写入中国大陆 IP 路由表，适合与 VPN、代理等工具配合实现国内外流量分流。
@@ -39,7 +40,6 @@ chnroutes-rs-next up
 
 # 使用 chnroutes2 高精度数据源
 chnroutes-rs-next up --source chnroutes2
-
 2. 删除已写入的路由
 PowerShell
 chnroutes-rs-next down
