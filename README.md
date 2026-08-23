@@ -1,7 +1,8 @@
 # chnroutes-rs-next
 
-`chnroutes` 的 Rust 重构与增强版本，用于生成和写入中国大陆 IP 路由表，适合与 VPN、代理等工具配合实现国内外流量分流。
+`chnroutes-rs` 的增强版本，用于生成和管理中国大陆 IP 路由规则，实现 VPN / 代理环境下的国内外流量分流。
 
+<<<<<<< HEAD
 项目支持多种中国大陆 IP 数据源，并通过 CIDR 聚合、系统原生网络 API 等方式提高路由生成与注入效率。
 
 ## 核心特性
@@ -53,22 +54,99 @@ chnroutes-rs-next down
 route print
 ```
 
+=======
+相比原项目，`chnroutes-rs-next` 增加了多数据源支持（`chnroutes2`）、CIDR 路由优化、BGP / ASN 分析能力，并改用系统原生网络 API 进行路由注入。
 
-## 从源码构建
+## 核心特性
 
+* **多数据源支持**：支持 APNIC 官方分配数据及 `chnroutes2` 高精度 CN 路由数据。
+* **CIDR 路由优化**：自动对 IP 网段进行合并与聚合，大幅减少系统路由表项数量，提高加载效率。
+* **原生路由操作**：
+  * `up` / `down` 直接写入或删除系统路由表。
+  * **Windows 平台优势**：通过系统原生 IP Helper API (`IPHLPAPI`) 直接注入/删除路由表，无需生成低效的批处理 `.bat` 脚本逐条执行。
+* **BGP / ASN 数据支持**：支持自治系统号（ASN）相关数据的提取、分类与处理。
+* **跨平台**：支持 Windows、Linux、macOS。
+
+## 与原项目区别
+
+| 特性 / 功能 | chnroutes-rs | chnroutes-rs-next |
+| :--- | :---: | :---: |
+| Rust 实现与路由规则生成 | ✅ | ✅ |
+| APNIC 数据源 | ✅ | ✅ |
+| **chnroutes2 数据源支持** | ❌ | **✅** |
+| CIDR 路由聚合 | 基础支持 | **增强优化** |
+| BGP / ASN 数据处理 | ❌ | **✅** |
+| **系统路由注入方式** | 路由脚本导出 | **系统 API 直接操作** |
+
+## 常用命令
+
+> **注意**：直接修改系统路由表（执行 `up` / `down`）需要**管理员 (Admin / root) 权限**。
+
+```bash
+# 查看帮助
+chnroutes-rs-next --help
+
+# 写入中国大陆路由（默认使用 APNIC 数据源）
+chnroutes-rs-next up
+
+# 使用 chnroutes2 数据源写入路由
+chnroutes-rs-next up --source chnroutes2
+
+# 清除已写入的中国大陆路由
+chnroutes-rs-next down
+
+# 导出路由脚本（支持 Windows / macOS / Linux / Android / OpenVPN）
+chnroutes-rs-next export --platform windows
+
+## 安装与构建
+## 预编译版本
+直接从 Releases 下载适用于 Windows (x86_64)、Linux (x86_64) 或 macOS (ARM64) 的最新二进制文件。
+>>>>>>> 3723191 (Update README documentation)
+
+从源码构建
+需要 Rust 工具链支持：
+
+<<<<<<< HEAD
 需提前安装 Rust 工具链：
 
+=======
+>>>>>>> 3723191 (Update README documentation)
 ```bash
 cargo build --release --features bin
 ```
+构建完成后：
 
+<<<<<<< HEAD
 构建完成后，可执行文件位于 `target/release/chnroutes-rs-next`（Windows 为 `.exe`）。
 
 ## 关联项目
 
 * GitHub：[aabbc143/chnroutes-rs-next](https://github.com/aabbc143/chnroutes-rs-next)
 * 原项目：[lxl66566/chnroutes-rs](https://github.com/lxl66566/chnroutes-rs)
+=======
+Windows:
+
+```text
+target/release/chnroutes-rs-next.exe
+```
+
+Linux / macOS:
+
+```text
+target/release/chnroutes-rs-next
+```
+
+## 项目地址
+
+本项目：
+
+https://github.com/aabbc143/chnroutes-rs-next
+
+基于：
+
+https://github.com/lxl66566/chnroutes-rs
+>>>>>>> 3723191 (Update README documentation)
 
 ## License
 
-MIT
+MIT License
