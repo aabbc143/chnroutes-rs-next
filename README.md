@@ -39,3 +39,30 @@ chnroutes-rs-next up
 
 # 使用 chnroutes2 高精度数据源
 chnroutes-rs-next up --source chnroutes2
+
+2. 删除已写入的路由
+PowerShell
+chnroutes-rs-next down
+3. 查看路由表状态
+PowerShell
+route print
+4. 导出路由脚本（可选）
+如仅需生成脚本手动处理而非直接写入系统，可使用 export 命令：
+
+PowerShell
+# 导出 Windows 批处理脚本
+chnroutes-rs-next export --platform windows --source chnroutes2
+从源码构建
+需提前安装 Rust 工具链：
+
+Bash
+cargo build --release --features bin
+构建完成后，可执行文件位于 target/release/chnroutes-rs-next（Windows 为 .exe）。
+
+关联项目
+GitHub：aabbc143/chnroutes-rs-next
+
+原项目：lxl66566/chnroutes-rs
+
+License
+MIT
