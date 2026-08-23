@@ -1,3 +1,5 @@
+#[cfg(target_os = "windows")]
+use std::process::Command;
 use std::{
     net::{IpAddr, Ipv4Addr},
     sync::OnceLock,
