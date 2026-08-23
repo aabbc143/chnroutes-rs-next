@@ -53,14 +53,6 @@ chnroutes-rs-next down
 route print
 ```
 
-### 4. 导出路由脚本（可选）
-
-如仅需生成脚本手动处理而非直接写入系统，可使用 `export` 命令：
-
-```powershell
-# 导出 Windows 批处理脚本
-chnroutes-rs-next export --platform windows --source chnroutes2
-```
 
 ## 从源码构建
 
