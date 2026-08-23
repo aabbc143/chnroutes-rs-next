@@ -1,8 +1,9 @@
 use std::{
     net::{IpAddr, Ipv4Addr},
-    process::Command,
     sync::OnceLock,
 };
+#[cfg(target_os = "windows")]
+use std::process::Command;
 
 use futures_util::{stream::FuturesOrdered, StreamExt};
 use ipnet::IpNet;
