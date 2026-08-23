@@ -224,9 +224,7 @@ pub async fn add_routes(routes: &[IpNet]) -> Result<()> {
 
     info!(
         "Routes completed: added={}, already_exists={}, failed={}",
-        added,
-        existed,
-        failed
+        added, existed, failed
     );
 
     Ok(())
@@ -280,9 +278,7 @@ pub async fn del_routes(routes: &[IpNet]) -> Result<()> {
 
     info!(
         "Routes removed: removed={}, not_found={}, failed={}",
-        removed,
-        missing,
-        failed
+        removed, missing, failed
     );
 
     Ok(())
