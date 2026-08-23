@@ -6,7 +6,7 @@ use std::{
 
 use futures_util::{stream::FuturesOrdered, StreamExt};
 use ipnet::IpNet;
-use log::{info, warn};
+use log::info;
 use net_route::{Handle, Route};
 use tokio::sync::OnceCell;
 
@@ -202,33 +202,32 @@ pub async fn add_routes(routes: &[IpNet]) -> Result<()> {
         .map(|route| add_route(handle, route))
         .collect::<FuturesOrdered<_>>();
 
-    let mut index = 1;
-    let mut ignored = 0;
+    let mut added = 0;
+    let mut existed = 0;
+    let mut failed = 0;
 
     while let Some(result) = futures.next().await {
         match result {
-            Ok(()) => {}
+            Ok(()) => {
+                added += 1;
+            }
 
             Err(RouteOpError::RouteAlreadyExistsError) => {
-                ignored += 1;
+                existed += 1;
             }
 
-            Err(err) => {
-                warn!(
-                    "Failed to add {} th route ({:?}): {:?}, skipping.",
-                    index,
-                    routes.get(index - 1),
-                    err
-                );
-
-                ignored += 1;
+            Err(_) => {
+                failed += 1;
             }
         }
-
-        index += 1;
     }
 
-    info!("Routes added success, ignored: {}.", ignored);
+    info!(
+        "Routes completed: added={}, already_exists={}, failed={}",
+        added,
+        existed,
+        failed
+    );
 
     Ok(())
 }
@@ -259,33 +258,32 @@ pub async fn del_routes(routes: &[IpNet]) -> Result<()> {
         .map(|route| del_route(&handle, route))
         .collect::<FuturesOrdered<_>>();
 
-    let mut index = 1;
-    let mut ignored = 0;
+    let mut removed = 0;
+    let mut missing = 0;
+    let mut failed = 0;
 
     while let Some(result) = futures.next().await {
         match result {
-            Ok(()) => {}
+            Ok(()) => {
+                removed += 1;
+            }
 
             Err(RouteOpError::RouteNotFoundError) => {
-                ignored += 1;
+                missing += 1;
             }
 
-            Err(err) => {
-                warn!(
-                    "Failed to remove {} th route ({:?}): {:?}, skipping.",
-                    index,
-                    routes.get(index - 1),
-                    err
-                );
-
-                ignored += 1;
+            Err(_) => {
+                failed += 1;
             }
         }
-
-        index += 1;
     }
 
-    info!("Routes removed success, ignored: {}.", ignored);
+    info!(
+        "Routes removed: removed={}, not_found={}, failed={}",
+        removed,
+        missing,
+        failed
+    );
 
     Ok(())
 }
