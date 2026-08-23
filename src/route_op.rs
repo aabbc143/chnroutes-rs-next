@@ -187,10 +187,10 @@ pub async fn add_routes(routes: &[IpNet]) -> Result<()> {
         return Ok(());
     }
 
-    // Detect the interface before adding routes.
+    // Detect and cache the interface before adding routes.
     //
-    // This makes interface detection fail once, clearly, instead of
-    // generating thousands of identical warnings.
+    // This ensures all routes in one operation use the same
+    // physical network interface.
     let ifindex = interface_index().map_err(RouteOpError::GetInterfaceError)?;
 
     info!("Using interface index {} for IPv4 routes.", ifindex);
