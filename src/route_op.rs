@@ -218,8 +218,12 @@ pub async fn add_routes(routes: &[IpNet]) -> Result<()> {
                 existed += 1;
             }
 
-            Err(_) => {
+            Err(err) => {
                 failed += 1;
+
+                if failed <= 10 {
+                    log::warn!("Route failed: {}", err);
+                }
             }
         }
     }
@@ -272,8 +276,12 @@ pub async fn del_routes(routes: &[IpNet]) -> Result<()> {
                 missing += 1;
             }
 
-            Err(_) => {
+            Err(err) => {
                 failed += 1;
+
+                if failed <= 10 {
+                    log::warn!("Route failed: {:?}", err);
+                }
             }
         }
     }
