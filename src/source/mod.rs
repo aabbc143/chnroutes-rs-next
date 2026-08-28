@@ -15,14 +15,14 @@ pub mod bgp_whois;
 pub mod chnroutes2;
 pub mod classifier;
 
-/// Data source used to generate the CN IP route list.
+/// 用于生成 CN IP 路由列表的数据源枚举
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Source {
-    /// APNIC delegated address data.
+    /// APNIC 官方分配地址数据
     #[default]
     Apnic,
 
-    /// Sukka's optimized China IPv4 CIDR list.
+    /// Sukka 优化版 China IPv4 CIDR 列表
     Chnroutes2,
 
     #[cfg(test)]
@@ -48,7 +48,7 @@ impl FromStr for Source {
 }
 
 impl Source {
-    /// Return a stable string representation used by the CLI.
+    /// 返回 CLI 与 Service 调度的字符串标识
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Apnic => "apnic",

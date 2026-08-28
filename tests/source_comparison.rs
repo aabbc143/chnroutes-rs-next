@@ -247,7 +247,7 @@ fn print_top_chnroutes2_only(
         })
         .collect::<Vec<_>>();
 
-    ranges.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+    ranges.sort_unstable_by_key(|a| std::cmp::Reverse(a.1));
 
     println!();
     println!("=== Top chnroutes2 prefixes by actual uncovered addresses ===");

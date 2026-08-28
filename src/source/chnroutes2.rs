@@ -4,22 +4,49 @@ use std::time::Duration;
 use ipnet::IpNet;
 use log::info;
 
+use crate::cache::{Cache, CACHE_TTL};
+
 const CHNROUTES2_URL: &str = "https://chnroutes2.cdn.skk.moe/chnroutes.txt";
+const CACHE_NAME: &str = "chnroutes2";
 const HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Fetch the optimized China IPv4 CIDR list from chnroutes2.
+/// Fetch CN IPv4 data using the local cache when available.
 pub fn fetch_ip_data() -> crate::error::Result<Vec<IpNet>> {
-    info!("Fetching chnroutes2 data ...");
+    fetch_ip_data_internal(false)
+}
+
+/// Force refresh CN IPv4 data from chnroutes2, bypassing the local cache.
+pub fn fetch_ip_data_force() -> crate::error::Result<Vec<IpNet>> {
+    fetch_ip_data_internal(true)
+}
+
+fn fetch_ip_data_internal(force_refresh: bool) -> crate::error::Result<Vec<IpNet>> {
+    let cache = Cache::new(CACHE_NAME, CACHE_TTL);
+
+    if !force_refresh {
+        if let Some(data) = cache.load()? {
+            info!("Loading chnroutes2 data from cache ...");
+
+            let content = String::from_utf8(data)?;
+            return Ok(parse_ip_data(&content));
+        }
+    }
+
+    if force_refresh {
+        info!("Force fetching chnroutes2 data ...");
+    } else {
+        info!("Fetching chnroutes2 data ...");
+    }
 
     let client = reqwest::blocking::Client::builder()
         .timeout(HTTP_TIMEOUT)
         .build()?;
 
     let response = client.get(CHNROUTES2_URL).send()?.error_for_status()?;
-
     let data = response.text()?;
 
     info!("Fetching chnroutes2 data done");
+    cache.save_str(&data)?;
 
     Ok(parse_ip_data(&data))
 }

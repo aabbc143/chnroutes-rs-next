@@ -3,28 +3,38 @@ use std::{io::Cursor, net::IpAddr, str::FromStr, time::Duration};
 use ipnet::IpNet;
 use log::{info, warn};
 
-use crate::cache::Cache;
+use crate::cache::{Cache, CACHE_TTL};
 
 const CACHE_NAME: &str = "apnic";
-const CACHE_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const APNIC_URL: &str = "https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest";
 
 /// Fetch CN IPv4 data from APNIC, using a 7-day cache.
-///
-/// When the network request fails, the built-in APNIC snapshot is used as a
-/// fallback. The fallback data is deliberately not written back to the cache,
-/// so it cannot masquerade as fresh data for another 7 days.
 pub fn fetch_ip_data() -> crate::error::Result<Vec<IpNet>> {
+    fetch_ip_data_internal(false)
+}
+
+/// Force refresh CN IPv4 data from APNIC, bypassing the local cache.
+pub fn fetch_ip_data_force() -> crate::error::Result<Vec<IpNet>> {
+    fetch_ip_data_internal(true)
+}
+
+fn fetch_ip_data_internal(force_refresh: bool) -> crate::error::Result<Vec<IpNet>> {
     let cache = Cache::new(CACHE_NAME, CACHE_TTL);
 
-    if let Some(data) = cache.load()? {
-        info!("Loading APNIC data from cache ...");
+    if !force_refresh {
+        if let Some(data) = cache.load()? {
+            info!("Loading APNIC data from cache ...");
 
-        let content = String::from_utf8(data)?;
-        return Ok(parse_ip_data(&content));
+            let content = String::from_utf8(data)?;
+            return Ok(parse_ip_data(&content));
+        }
     }
 
-    info!("Fetching APNIC data ...");
+    if force_refresh {
+        info!("Force fetching APNIC data ...");
+    } else {
+        info!("Fetching APNIC data ...");
+    }
 
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(10))
