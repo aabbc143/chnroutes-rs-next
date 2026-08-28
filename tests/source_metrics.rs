@@ -6,6 +6,7 @@ enum Truth {
 
 #[derive(Debug, Clone, Copy)]
 struct CoverageCase {
+    #[allow(dead_code)]
     cidr: &'static str,
     truth: Truth,
     apnic_coverage: f64,

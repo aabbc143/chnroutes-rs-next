@@ -44,6 +44,25 @@ pub enum Subcommand {
 
     /// Remove CN IP rules from the system route table.
     Down,
+
+    /// Refresh routes using source data and apply only route differences.
+    Update,
+
+    /// Restore routes from saved state.
+    Restore,
+
+    /// Automatically restore routes during startup.
+    AutoRestore,
+
+    /// Install Windows service for startup route restoration.
+    InstallService,
+
+    /// Remove installed Windows service.
+    RemoveService,
+
+    /// Internal entry point for Windows Service Manager.
+    #[command(hide = true)]
+    Service,
 }
 
 #[derive(Debug, clap::Args, Clone)]
@@ -59,22 +78,69 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let cli = Cli::parse();
 
-    let source =
-        chnroutes::Source::from_str(&cli.source).map_err(|err| format!("Invalid source: {err}"))?;
-
-    log::info!("Using source: {}", source.as_str());
-
     match cli.subcommand {
         Subcommand::Export(ExportArgs { platform }) => {
+            let source = chnroutes::Source::from_str(&cli.source)
+                .map_err(|err| format!("Invalid source: {err}"))?;
+
+            log::info!("Using source: {}", source.as_str());
+
             export(platform.as_deref(), &source)?;
         }
 
         Subcommand::Up => {
+            let source = chnroutes::Source::from_str(&cli.source)
+                .map_err(|err| format!("Invalid source: {err}"))?;
+
+            log::info!("Using source: {}", source.as_str());
+
             chnroutes::up(&source).await?;
         }
 
         Subcommand::Down => {
+            let source = chnroutes::Source::from_str(&cli.source)
+                .map_err(|err| format!("Invalid source: {err}"))?;
+
+            log::info!("Using source: {}", source.as_str());
+
             chnroutes::down(&source).await?;
+        }
+
+        Subcommand::Update => {
+            let source = chnroutes::Source::from_str(&cli.source)
+                .map_err(|err| format!("Invalid source: {err}"))?;
+
+            log::info!("Using source: {}", source.as_str());
+
+            chnroutes::update(&source).await?;
+        }
+
+        Subcommand::Restore => {
+            chnroutes::restore().await?;
+        }
+
+        Subcommand::AutoRestore => {
+            chnroutes::auto_restore().await?;
+        }
+
+        #[cfg(windows)]
+        Subcommand::InstallService => {
+            chnroutes::service::win::install()?;
+        }
+
+        #[cfg(windows)]
+        Subcommand::RemoveService => {
+            chnroutes::service::win::remove()?;
+        }
+
+        #[cfg(windows)]
+        Subcommand::Service => {
+            chnroutes::service::win::run()?;
+        }
+
+        #[cfg(not(windows))]
+        Subcommand::InstallService | Subcommand::RemoveService | Subcommand::Service => {
+            return Err("Windows service management is only supported on Windows.".into());
         }
     }
 

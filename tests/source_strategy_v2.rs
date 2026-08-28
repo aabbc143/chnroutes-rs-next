@@ -8,6 +8,7 @@ enum Truth {
 
 #[derive(Debug, Clone, Copy)]
 struct Case {
+    #[allow(dead_code)]
     cidr: &'static str,
     truth: Truth,
     origin_asn: u32,
