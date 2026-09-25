@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod domain;
 pub mod error;
 pub mod route_op;
 pub mod service;
