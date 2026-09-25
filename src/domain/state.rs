@@ -69,7 +69,7 @@ impl DomainStateEntry {
             return;
         };
 
-        let Some(action) = RouteIntentAction::try_from(self.action).ok() else {
+        let Some(action) = Option::<RouteIntentAction>::from(self.action) else {
             return;
         };
 
@@ -186,19 +186,6 @@ impl std::fmt::Display for ResolveStateError {
 
 impl std::error::Error for ResolveStateError {}
 
-impl TryFrom<DomainPolicyAction> for RouteIntentAction {
-    type Error = ();
-
-    fn try_from(action: DomainPolicyAction) -> Result<Self, Self::Error> {
-        match action {
-            DomainPolicyAction::Direct => Ok(Self::Direct),
-            DomainPolicyAction::Proxy => Ok(Self::Proxy),
-            DomainPolicyAction::Auto => Ok(Self::Auto),
-            DomainPolicyAction::Block => Ok(Self::Block),
-            DomainPolicyAction::NoOverride => Err(()),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
