@@ -87,16 +87,19 @@ impl RouteIntent {
     }
 }
 
-impl From<DomainPolicyAction> for RouteIntentAction {
+/// Convert an effective domain policy action into a route intent action.
+///
+/// NoOverride is represented as None: it means that the domain policy did not
+/// claim ownership of the final routing decision and therefore must never
+/// create a RouteIntent.
+impl From<DomainPolicyAction> for Option<RouteIntentAction> {
     fn from(action: DomainPolicyAction) -> Self {
         match action {
-            DomainPolicyAction::Direct => Self::Direct,
-            DomainPolicyAction::Proxy => Self::Proxy,
-            DomainPolicyAction::Auto => Self::Auto,
-            DomainPolicyAction::Block => Self::Block,
-            DomainPolicyAction::NoOverride => {
-                unreachable!("NoOverride must not be converted into RouteIntent")
-            }
+            DomainPolicyAction::Direct => Some(RouteIntentAction::Direct),
+            DomainPolicyAction::Proxy => Some(RouteIntentAction::Proxy),
+            DomainPolicyAction::Auto => Some(RouteIntentAction::Auto),
+            DomainPolicyAction::Block => Some(RouteIntentAction::Block),
+            DomainPolicyAction::NoOverride => None,
         }
     }
 }
@@ -184,19 +187,19 @@ mod tests {
     #[test]
     fn policy_action_conversion_is_explicit() {
         assert_eq!(
-            RouteIntentAction::from(DomainPolicyAction::Direct),
+            Option::<RouteIntentAction>::from(DomainPolicyAction::Direct),
             RouteIntentAction::Direct
         );
         assert_eq!(
-            RouteIntentAction::from(DomainPolicyAction::Proxy),
+            Option::<RouteIntentAction>::from(DomainPolicyAction::Proxy),
             RouteIntentAction::Proxy
         );
         assert_eq!(
-            RouteIntentAction::from(DomainPolicyAction::Auto),
+            Option::<RouteIntentAction>::from(DomainPolicyAction::Auto),
             RouteIntentAction::Auto
         );
         assert_eq!(
-            RouteIntentAction::from(DomainPolicyAction::Block),
+            Option::<RouteIntentAction>::from(DomainPolicyAction::Block),
             RouteIntentAction::Block
         );
     }
