@@ -14,6 +14,12 @@ pub enum DomainPolicyAction {
     NoOverride,
 }
 
+impl Default for DomainPolicyAction {
+    fn default() -> Self {
+        Self::Direct
+    }
+}
+
 /// The matcher used by a domain rule.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DomainRuleMatcher {
