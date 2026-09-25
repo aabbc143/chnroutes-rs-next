@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::{DomainPolicyAction, DomainRecord, RouteIntent, RouteIntentAction, RouteIntentOwner};
+use super::policy::normalize_domain;
 
 /// Runtime state belonging to one domain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,9 +17,9 @@ pub struct DomainStateEntry {
 }
 
 impl DomainStateEntry {
-    pub fn new(domain: impl Into<String>, action: DomainPolicyAction) -> Self {
+    pub fn new(domain: impl AsRef<str>, action: DomainPolicyAction) -> Self {
         Self {
-            domain: domain.into(),
+            domain: normalize_domain(domain.as_ref()),
             action,
             generation: 0,
             record: None,
@@ -107,26 +108,27 @@ impl DomainState {
     }
 
     pub fn get(&self, domain: &str) -> Option<&DomainStateEntry> {
-        self.entries.get(domain)
+        self.entries.get(&normalize_domain(domain))
     }
 
     pub fn get_mut(&mut self, domain: &str) -> Option<&mut DomainStateEntry> {
-        self.entries.get_mut(domain)
+        let domain = normalize_domain(domain);
+        self.entries.get_mut(&domain)
     }
 
     pub fn upsert(
         &mut self,
-        domain: impl Into<String>,
+        domain: impl AsRef<str>,
         action: DomainPolicyAction,
     ) -> &mut DomainStateEntry {
-        let domain = domain.into();
+        let domain = normalize_domain(domain.as_ref());
         self.entries
             .entry(domain.clone())
             .or_insert_with(|| DomainStateEntry::new(domain, action))
     }
 
     pub fn remove(&mut self, domain: &str) -> Option<DomainStateEntry> {
-        self.entries.remove(domain)
+        self.entries.remove(&normalize_domain(domain))
     }
 
     pub fn len(&self) -> usize {
