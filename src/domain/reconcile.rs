@@ -87,19 +87,24 @@ impl<B: RouteBackend> Reconciler<B> {
             self.backend.apply(&plan.apply).await?;
         }
 
-        self.applied = effective_intents(desired, now)?;
+        self.applied = effective_intents(desired, now, true)?;
         Ok(plan)
     }
 }
 
 fn effective_intents(
-    desired: &[RouteIntent],
+    intents: &[RouteIntent],
     now: u64,
+    drop_expired: bool,
 ) -> Result<Vec<RouteIntent>, ReconcileError> {
     let mut by_destination: HashMap<IpNet, HashMap<RouteIntentAction, RouteIntent>> =
         HashMap::new();
 
-    for intent in desired.iter().filter(|intent| !intent.is_expired_at(now)) {
+    for intent in intents {
+        if drop_expired && intent.is_expired_at(now) {
+            continue;
+        }
+
         let actions = by_destination.entry(intent.destination).or_default();
 
         if !actions.is_empty() && !actions.contains_key(&intent.action) {
@@ -145,8 +150,8 @@ fn build_plan(
     applied: &[RouteIntent],
     now: u64,
 ) -> Result<ReconcilePlan, ReconcileError> {
-    let desired = effective_intents(desired, now)?;
-    let applied = effective_intents(applied, now)?;
+    let desired = effective_intents(desired, now, true)?;
+    let applied = effective_intents(applied, now, false)?;
 
     let desired_keys: HashSet<_> = desired.iter().map(intent_key).collect();
     let applied_keys: HashSet<_> = applied.iter().map(intent_key).collect();
@@ -262,7 +267,7 @@ mod tests {
             intent("1.2.3.4", RouteIntentAction::Direct, "a.example", 1, 100),
             intent("1.2.3.4", RouteIntentAction::Direct, "b.example", 2, 200),
         ];
-        let effective = effective_intents(&desired, 50).unwrap();
+        let effective = effective_intents(&desired, 50, true).unwrap();
         assert_eq!(effective.len(), 1);
         assert_eq!(effective[0].generation, 2);
         assert_eq!(effective[0].expires_at, 200);
@@ -275,7 +280,7 @@ mod tests {
             intent("1.2.3.4", RouteIntentAction::Proxy, "b.example", 1, 100),
         ];
         assert!(matches!(
-            effective_intents(&desired, 50),
+            effective_intents(&desired, 50, true),
             Err(ReconcileError::ConflictingActions { .. })
         ));
     }
