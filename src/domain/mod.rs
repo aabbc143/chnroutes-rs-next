@@ -24,5 +24,5 @@ pub use policy::{
 };
 pub use reconcile::{ReconcileError, ReconcilePlan, Reconciler};
 pub use resolver::{DomainRecord, ResolveError, Resolver, ResolverFuture};
-pub use runtime::{DomainRuntime, ResolveOutcome};
+pub use runtime::{DomainRuntime, ResolveOutcome, ResolutionRequest};
 pub use state::{DomainState, DomainStateEntry, ResolveStateError};
