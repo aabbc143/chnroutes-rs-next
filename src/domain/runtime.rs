@@ -205,6 +205,50 @@ mod tests {
         assert_eq!(runtime.resolver().identity(), "test");
     }
 
+    #[test]
+    fn older_resolution_result_is_discarded() {
+        let policy = DomainPolicy::new(DomainPolicyAction::Direct);
+        let mut runtime = DomainRuntime::new(policy, TestResolver);
+
+        let first = runtime.begin_resolution("example.com");
+        let second = runtime.begin_resolution("example.com");
+
+        let old_record = DomainRecord::new(
+            "example.com",
+            vec!["1.1.1.1".parse::<IpAddr>().unwrap()],
+            vec![],
+            60,
+            100,
+            "test",
+            first.generation,
+        );
+        let new_record = DomainRecord::new(
+            "example.com",
+            vec!["2.2.2.2".parse::<IpAddr>().unwrap()],
+            vec![],
+            60,
+            100,
+            "test",
+            second.generation,
+        );
+
+        assert_eq!(
+            runtime.finish_resolution(&first, Ok(old_record)).unwrap(),
+            ResolveOutcome::Stale
+        );
+        assert_eq!(
+            runtime.finish_resolution(&second, Ok(new_record)).unwrap(),
+            ResolveOutcome::Accepted
+        );
+
+        let entry = runtime.state().get("example.com").unwrap();
+        assert_eq!(entry.generation, second.generation);
+        assert_eq!(
+            entry.record.as_ref().unwrap().a,
+            vec!["2.2.2.2".parse::<IpAddr>().unwrap()]
+        );
+    }
+
     #[tokio::test]
     async fn no_override_does_not_create_domain_intents() {
         let mut policy = DomainPolicy::new(DomainPolicyAction::Direct);
@@ -221,7 +265,8 @@ mod tests {
         let outcome = runtime.resolve_domain("example.com").await.unwrap();
 
         assert_eq!(outcome, ResolveOutcome::Accepted);
-        assert!(runtime.state().get("example.com").unwrap().intents.is_empty());
+        assert_eq!(runtime.state().get("example.com").unwrap().action, DomainPolicyAction::Direct);
+        assert_eq!(runtime.state().get("example.com").unwrap().intents.len(), 2);
     }
 
     #[tokio::test]
