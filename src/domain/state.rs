@@ -70,7 +70,7 @@ impl DomainStateEntry {
             return;
         };
 
-        let Some(action) = Option::<RouteIntentAction>::from(self.action) else {
+        let Some(action) = RouteIntentAction::from_policy(self.action) else {
             return;
         };
 
