@@ -10,6 +10,7 @@ pub mod intent;
 pub mod policy;
 pub mod reconcile;
 pub mod resolver;
+pub mod runtime;
 pub mod state;
 
 pub use backend::{
@@ -23,4 +24,5 @@ pub use policy::{
 };
 pub use reconcile::{ReconcileError, ReconcilePlan, Reconciler};
 pub use resolver::{DomainRecord, ResolveError, Resolver, ResolverFuture};
+pub use runtime::{DomainRuntime, ResolveOutcome};
 pub use state::{DomainState, DomainStateEntry, ResolveStateError};
