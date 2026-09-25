@@ -122,9 +122,20 @@ impl DomainState {
         action: DomainPolicyAction,
     ) -> &mut DomainStateEntry {
         let domain = normalize_domain(domain.as_ref());
-        self.entries
+        let entry = self
+            .entries
             .entry(domain.clone())
-            .or_insert_with(|| DomainStateEntry::new(domain, action))
+            .or_insert_with(|| DomainStateEntry::new(&domain, action));
+
+        if entry.action != action {
+            entry.action = action;
+            // A policy change invalidates intents produced under the previous
+            // action. Keep the DNS record as reusable input, but require a
+            // fresh resolution cycle before creating new intents.
+            entry.intents.clear();
+        }
+
+        entry
     }
 
     pub fn remove(&mut self, domain: &str) -> Option<DomainStateEntry> {
