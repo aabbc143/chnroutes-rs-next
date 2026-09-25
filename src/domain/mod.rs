@@ -2,12 +2,12 @@
 //!
 //! This module intentionally has no dependency on route tables, VPNs, or
 //! proxy implementations. Policy evaluation, DNS state, route intent
-//! generation, and backend enforcement are kept separate so the later
-//! Reconciler can combine them without coupling either side.
+//! generation, backend enforcement, and reconciliation are kept separate.
 
 pub mod backend;
 pub mod intent;
 pub mod policy;
+pub mod reconcile;
 pub mod resolver;
 
 pub use backend::{
@@ -19,4 +19,5 @@ pub use policy::{
     DomainPolicy, DomainPolicyAction, DomainPolicyDecision, DomainRule, DomainRuleMatch,
     DomainRuleMatcher, DomainRuleSource,
 };
+pub use reconcile::{ReconcileError, ReconcilePlan, Reconciler};
 pub use resolver::{DomainRecord, ResolveError, Resolver, ResolverFuture};
