@@ -13,6 +13,17 @@ pub enum ResolveOutcome {
     Stale,
 }
 
+/// A resolution request allocated by DomainState before the async DNS work.
+///
+/// The generation is the concurrency fence: only a result carrying the
+/// current generation may commit into DomainState.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolutionRequest {
+    pub domain: String,
+    pub generation: u64,
+    pub action: DomainPolicyAction,
+}
+
 /// Coordinates policy evaluation, resolution generation, and DomainState.
 ///
 /// This is intentionally not a RouteBackend or a traffic proxy. Its only job
@@ -60,31 +71,38 @@ where
         self.state.desired_intents(now)
     }
 
-    /// Resolve one domain using the action selected by the current policy.
+    /// Start a resolution without awaiting the resolver.
     ///
-    /// The generation is allocated before awaiting the resolver. A late
-    /// response from an older request therefore cannot overwrite newer state.
-    pub async fn resolve_domain(
-        &mut self,
-        domain: &str,
-    ) -> Result<ResolveOutcome, ResolveError> {
+    /// This separation is intentional: callers can issue multiple DNS
+    /// requests concurrently and later commit results in any completion order.
+    pub fn begin_resolution(&mut self, domain: &str) -> ResolutionRequest {
         let normalized = super::policy::normalize_domain(domain);
         let action = self.policy.evaluate(&normalized).action;
+        let generation = self
+            .state
+            .upsert(&normalized, action)
+            .begin_resolution();
 
-        let generation = {
-            let entry = self.state.upsert(normalized.clone(), action);
-            entry.begin_resolution()
-        };
+        ResolutionRequest {
+            domain: normalized,
+            generation,
+            action,
+        }
+    }
 
-        let result = self.resolver.resolve(&normalized, generation).await;
+    /// Commit or reject a resolver result against its generation fence.
+    pub fn finish_resolution(
+        &mut self,
+        request: &ResolutionRequest,
+        result: Result<super::DomainRecord, ResolveError>,
+    ) -> Result<ResolveOutcome, ResolveError> {
+        let entry = self
+            .state
+            .get_mut(&request.domain)
+            .expect("state entry must exist after begin_resolution");
 
         match result {
             Ok(record) => {
-                let entry = self
-                    .state
-                    .get_mut(&normalized)
-                    .expect("state entry must exist after begin_resolution");
-
                 if entry.accept_record(record) {
                     Ok(ResolveOutcome::Accepted)
                 } else {
@@ -92,15 +110,26 @@ where
                 }
             }
             Err(error) => {
-                let entry = self
-                    .state
-                    .get_mut(&normalized)
-                    .expect("state entry must exist after begin_resolution");
-
-                entry.reject_record(generation, super::state::ResolveStateError::from(&error));
+                entry.reject_record(
+                    request.generation,
+                    super::state::ResolveStateError::from(&error),
+                );
                 Err(error)
             }
         }
+    }
+
+    /// Resolve one domain using the action selected by the current policy.
+    ///
+    /// The public begin/finish pair remains available when callers need
+    /// concurrent resolution. This convenience method is the sequential form.
+    pub async fn resolve_domain(
+        &mut self,
+        domain: &str,
+    ) -> Result<ResolveOutcome, ResolveError> {
+        let request = self.begin_resolution(domain);
+        let result = self.resolver.resolve(&request.domain, request.generation).await;
+        self.finish_resolution(&request, result)
     }
 
     /// Remove a domain from policy/runtime ownership.
