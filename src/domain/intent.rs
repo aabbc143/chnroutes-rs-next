@@ -10,7 +10,7 @@ use super::policy::DomainPolicyAction;
 /// This intentionally mirrors the policy vocabulary instead of pretending
 /// that every action is a literal operating-system route operation. The
 /// RouteBackend decides which actions it can enforce directly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RouteIntentAction {
     Direct,
     Proxy,
@@ -93,12 +93,7 @@ impl From<DomainPolicyAction> for RouteIntentAction {
             DomainPolicyAction::Direct => Self::Direct,
             DomainPolicyAction::Proxy => Self::Proxy,
             DomainPolicyAction::Auto => Self::Auto,
-            // Block is a valid policy action but has no implicit route-table
-            // representation. Keeping it explicit prevents accidental
-            // interpretation as Direct or Proxy.
             DomainPolicyAction::Block => Self::Block,
-            // NoOverride must be resolved by DomainPolicy before reaching this
-            // layer.
             DomainPolicyAction::NoOverride => {
                 unreachable!("NoOverride must not be converted into RouteIntent")
             }
