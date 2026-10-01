@@ -146,8 +146,9 @@ where
                 }
             }
             Err(error) => {
-                // NXDOMAIN means the old DNS answer is no longer valid and
-                // must not continue producing route intents. Transient errors
+                // Authoritative NXDOMAIN/NODATA means the old DNS answer is no
+                // longer valid and must not continue producing route intents.
+                // Transient errors
                 // such as timeout/SERVFAIL retain the previous record so a
                 // temporary resolver failure does not immediately tear down
                 // otherwise-valid routing state.
