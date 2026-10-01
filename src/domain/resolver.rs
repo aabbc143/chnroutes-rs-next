@@ -194,31 +194,77 @@ fn resolve_system(domain: &str, generation: u64) -> Result<DomainRecord, Resolve
     const A: u16 = 1;
     const AAAA: u16 = 28;
 
-    let a = system_resolver::lookup(domain, A).map_err(classify_system_error)?;
-    let aaaa = system_resolver::lookup(domain, AAAA).map_err(classify_system_error)?;
+    let a = lookup_family(domain, A);
+    let aaaa = lookup_family(domain, AAAA);
 
-    let a_ips = decode_addresses(&a, A)?;
-    let aaaa_ips = decode_addresses(&aaaa, AAAA)?;
+    let mut a_ips = Vec::new();
+    let mut aaaa_ips = Vec::new();
+    let mut ttls = Vec::new();
 
-    if a_ips.is_empty() && aaaa_ips.is_empty() {
-        return Err(ResolveError::NoData);
+    if let Ok(records) = &a {
+        a_ips = decode_addresses(records, A)?;
+        ttls.extend(records.iter().map(|record| record.ttl.as_secs()));
     }
 
-    let ttl = a
-        .iter()
-        .chain(aaaa.iter())
-        .map(|record| record.ttl.as_secs())
-        .min()
-        .unwrap_or(0);
+    if let Ok(records) = &aaaa {
+        aaaa_ips = decode_addresses(records, AAAA)?;
+        ttls.extend(records.iter().map(|record| record.ttl.as_secs()));
+    }
 
-    Ok(DomainRecord::from_now(
-        domain,
-        a_ips,
-        aaaa_ips,
-        ttl,
-        "system",
-        generation,
-    ))
+    // A valid answer from either family is sufficient. A failure in the
+    // other family must not discard an otherwise usable result.
+    if !a_ips.is_empty() || !aaaa_ips.is_empty() {
+        let ttl = ttls.into_iter().min().unwrap_or(0);
+
+        return Ok(DomainRecord::from_now(
+            domain,
+            a_ips,
+            aaaa_ips,
+            ttl,
+            "system",
+            generation,
+        ));
+    }
+
+    Err(merge_family_errors(a, aaaa))
+}
+
+fn lookup_family(
+    domain: &str,
+    rtype: u16,
+) -> Result<Vec<system_resolver::Record>, ResolveError> {
+    system_resolver::lookup(domain, rtype).map_err(classify_system_error)
+}
+
+fn merge_family_errors(
+    a: Result<Vec<system_resolver::Record>, ResolveError>,
+    aaaa: Result<Vec<system_resolver::Record>, ResolveError>,
+) -> ResolveError {
+    match (a, aaaa) {
+        (Ok(_), Ok(_)) => ResolveError::NoData,
+        (Err(ResolveError::NxDomain), _)
+        | (_, Err(ResolveError::NxDomain)) => ResolveError::NxDomain,
+        (Err(error), Ok(_)) | (Ok(_), Err(error)) => error,
+        (Err(a), Err(aaaa)) => merge_resolution_errors(a, aaaa),
+    }
+}
+
+fn merge_resolution_errors(a: ResolveError, aaaa: ResolveError) -> ResolveError {
+    fn priority(error: &ResolveError) -> u8 {
+        match error {
+            ResolveError::ServFail => 4,
+            ResolveError::Timeout => 3,
+            ResolveError::Cancelled => 2,
+            ResolveError::Other(_) => 1,
+            ResolveError::NxDomain | ResolveError::NoData => 0,
+        }
+    }
+
+    if priority(&aaaa) > priority(&a) {
+        aaaa
+    } else {
+        a
+    }
 }
 
 fn decode_addresses(
@@ -292,6 +338,50 @@ mod tests {
         assert_eq!(
             decode_addresses(&aaaa, 28).unwrap(),
             vec![ip("1:2:3:4:5:6:7:8")]
+        );
+    }
+
+    #[test]
+    fn both_families_with_no_addresses_are_nodata() {
+        let a_result: Result<Vec<system_resolver::Record>, ResolveError> = Ok(Vec::new());
+        let aaaa_result: Result<Vec<system_resolver::Record>, ResolveError> = Ok(Vec::new());
+
+        assert_eq!(
+            merge_family_errors(a_result, aaaa_result),
+            ResolveError::NoData
+        );
+    }
+
+    #[test]
+    fn transient_failure_is_preserved_when_other_family_has_no_data() {
+        let a_result: Result<Vec<system_resolver::Record>, ResolveError> =
+            Err(ResolveError::Timeout);
+        let aaaa_result: Result<Vec<system_resolver::Record>, ResolveError> = Ok(Vec::new());
+
+        assert_eq!(
+            merge_family_errors(a_result, aaaa_result),
+            ResolveError::Timeout
+        );
+    }
+
+    #[test]
+    fn nxdomain_wins_when_no_family_produces_an_address() {
+        let a_result: Result<Vec<system_resolver::Record>, ResolveError> =
+            Err(ResolveError::NxDomain);
+        let aaaa_result: Result<Vec<system_resolver::Record>, ResolveError> =
+            Ok(Vec::new());
+
+        assert_eq!(
+            merge_family_errors(a_result, aaaa_result),
+            ResolveError::NxDomain
+        );
+    }
+
+    #[test]
+    fn servfail_has_higher_priority_than_timeout() {
+        assert_eq!(
+            merge_resolution_errors(ResolveError::Timeout, ResolveError::ServFail),
+            ResolveError::ServFail
         );
     }
 
