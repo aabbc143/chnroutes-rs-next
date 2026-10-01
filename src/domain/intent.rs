@@ -190,19 +190,23 @@ mod tests {
     fn policy_action_conversion_is_explicit() {
         assert_eq!(
             RouteIntentAction::from_policy(DomainPolicyAction::Direct),
-            RouteIntentAction::Direct
+            Some(RouteIntentAction::Direct)
         );
         assert_eq!(
             RouteIntentAction::from_policy(DomainPolicyAction::Proxy),
-            RouteIntentAction::Proxy
+            Some(RouteIntentAction::Proxy)
         );
         assert_eq!(
             RouteIntentAction::from_policy(DomainPolicyAction::Auto),
-            RouteIntentAction::Auto
+            Some(RouteIntentAction::Auto)
         );
         assert_eq!(
             RouteIntentAction::from_policy(DomainPolicyAction::Block),
-            RouteIntentAction::Block
+            Some(RouteIntentAction::Block)
+        );
+        assert_eq!(
+            RouteIntentAction::from_policy(DomainPolicyAction::NoOverride),
+            None
         );
     }
 }
