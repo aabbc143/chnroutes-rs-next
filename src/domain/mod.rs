@@ -12,6 +12,7 @@ pub mod reconcile;
 pub mod resolver;
 pub mod runtime;
 pub mod state;
+pub use resolver::SystemDnsResolver;
 
 pub use backend::{
     RouteBackend, RouteBackendCapabilities, RouteBackendError, RouteBackendFuture,
@@ -23,6 +24,6 @@ pub use policy::{
     DomainRuleMatcher, DomainRuleSource,
 };
 pub use reconcile::{ReconcileError, ReconcilePlan, Reconciler};
-pub use resolver::{DomainRecord, ResolveError, Resolver, ResolverFuture};
+pub use resolver::{DomainRecord, ResolveError, Resolver, ResolverFuture, SystemDnsResolver};
 pub use runtime::{DomainRuntime, ResolveOutcome, ResolutionRequest};
 pub use state::{DomainState, DomainStateEntry, ResolveStateError};
