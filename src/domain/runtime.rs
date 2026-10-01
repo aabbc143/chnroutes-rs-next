@@ -2,6 +2,7 @@ use super::{
     DomainPolicy, DomainPolicyAction, DomainState, ResolveError, Resolver, RouteIntent,
 };
 use super::policy::normalize_domain;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Result of a domain resolution attempt.
 ///
@@ -112,6 +113,17 @@ where
         request: &ResolutionRequest,
         result: Result<super::DomainRecord, ResolveError>,
     ) -> Result<ResolveOutcome, ResolveError> {
+        self.finish_resolution_at(request, result, unix_now())
+    }
+
+    /// Deterministic form of finish_resolution used by tests and callers that
+    /// already own a clock value.
+    pub fn finish_resolution_at(
+        &mut self,
+        request: &ResolutionRequest,
+        result: Result<super::DomainRecord, ResolveError>,
+        now: u64,
+    ) -> Result<ResolveOutcome, ResolveError> {
         let Some(entry) = self.state.get_mut(&request.domain) else {
             // The domain may have been removed while DNS work was in flight.
             // The result is no longer owned by the runtime and must be ignored.
@@ -146,6 +158,7 @@ where
                 if entry.reject_record(
                     request.generation,
                     super::state::ResolveStateError::from(&error),
+                    now,
                 ) {
                     Err(error)
                 } else {
@@ -172,6 +185,13 @@ where
     pub fn remove_domain(&mut self, domain: &str) -> Option<super::DomainStateEntry> {
         self.state.remove(domain)
     }
+}
+
+fn unix_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
 }
 
 impl From<&ResolveError> for super::state::ResolveStateError {
