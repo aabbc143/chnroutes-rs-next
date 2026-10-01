@@ -272,6 +272,46 @@ mod tests {
     }
 
     #[test]
+    fn decodes_system_resolver_ipv4_and_ipv6_rdata() {
+        let a = vec![system_resolver::Record::new(
+            "example.com",
+            1,
+            system_resolver::CLASS_IN,
+            std::time::Duration::from_secs(60),
+            vec![1, 2, 3, 4],
+        )];
+        let aaaa = vec![system_resolver::Record::new(
+            "example.com",
+            28,
+            system_resolver::CLASS_IN,
+            std::time::Duration::from_secs(60),
+            vec![0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8],
+        )];
+
+        assert_eq!(decode_addresses(&a, 1).unwrap(), vec![ip("1.2.3.4")]);
+        assert_eq!(
+            decode_addresses(&aaaa, 28).unwrap(),
+            vec![ip("1:2:3:4:5:6:7:8")]
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_system_resolver_rdata() {
+        let records = vec![system_resolver::Record::new(
+            "example.com",
+            1,
+            system_resolver::CLASS_IN,
+            std::time::Duration::from_secs(60),
+            vec![1, 2, 3],
+        )];
+
+        assert!(matches!(
+            decode_addresses(&records, 1),
+            Err(ResolveError::Other(message)) if message.contains("invalid DNS RDATA")
+        ));
+    }
+
+    #[test]
     fn record_normalizes_domain_and_calculates_lifecycle() {
         let record = DomainRecord::new_with_stale_grace(
             " WWW.Example.COM. ",
