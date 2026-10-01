@@ -30,9 +30,11 @@ pub enum RouteIntentOwner {
 
 /// A desired routing state produced by the Domain Routing layer.
 ///
-/// A DNS A/AAAA answer becomes a host route (/32 or /128). The intent is
-/// deliberately not a Windows route-table entry: gateway, interface index,
-/// metrics, and platform-specific details remain RouteBackend concerns.
+/// A DNS A/AAAA answer becomes a host route (/32 or /128). expires_at is the
+/// local enforcement lease and may extend beyond the DNS TTL during the
+/// configured stale-grace window. The intent is deliberately not a Windows
+/// route-table entry: gateway, interface index, metrics, and platform-specific
+/// details remain RouteBackend concerns.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RouteIntent {
     pub destination: IpNet,
