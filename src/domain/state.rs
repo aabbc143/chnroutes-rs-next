@@ -238,6 +238,7 @@ fn resolve_retry_delay_secs(failure_count: u32) -> u64 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolveStateError {
     NxDomain,
+    NoData,
     ServFail,
     Timeout,
     Cancelled,
@@ -248,6 +249,7 @@ impl std::fmt::Display for ResolveStateError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NxDomain => f.write_str("NXDOMAIN"),
+            Self::NoData => f.write_str("NODATA"),
             Self::ServFail => f.write_str("SERVFAIL"),
             Self::Timeout => f.write_str("DNS resolution timed out"),
             Self::Cancelled => f.write_str("DNS resolution cancelled"),
