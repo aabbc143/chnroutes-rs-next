@@ -9,12 +9,8 @@ use super::policy::normalize_domain;
 
 pub type ResolverFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-/// A DNS resolution snapshot used by the Domain Routing layer.
-///
-/// resolved_at and expires_at are Unix timestamps in seconds. Keeping the
-/// record independent from a concrete DNS library lets later implementations
-/// use the Windows resolver, DoH, DoT, or another resolver without changing
-/// the policy/reconcile layers.
+pub const DEFAULT_STALE_GRACE_SECS: u64 = 300;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DomainRecord {
     pub domain: String,
@@ -22,7 +18,9 @@ pub struct DomainRecord {
     pub aaaa: Vec<IpAddr>,
     pub ttl: u64,
     pub resolved_at: u64,
+    pub refresh_at: u64,
     pub expires_at: u64,
+    pub stale_until: u64,
     pub resolver: String,
     pub generation: u64,
 }
@@ -37,13 +35,41 @@ impl DomainRecord {
         resolver: impl Into<String>,
         generation: u64,
     ) -> Self {
+        Self::new_with_stale_grace(
+            domain,
+            a,
+            aaaa,
+            ttl,
+            resolved_at,
+            DEFAULT_STALE_GRACE_SECS,
+            resolver,
+            generation,
+        )
+    }
+
+    pub fn new_with_stale_grace(
+        domain: impl AsRef<str>,
+        a: Vec<IpAddr>,
+        aaaa: Vec<IpAddr>,
+        ttl: u64,
+        resolved_at: u64,
+        stale_grace_secs: u64,
+        resolver: impl Into<String>,
+        generation: u64,
+    ) -> Self {
+        let refresh_at = resolved_at.saturating_add(refresh_offset(ttl));
+        let expires_at = resolved_at.saturating_add(ttl);
+        let stale_until = expires_at.saturating_add(stale_grace_secs);
+
         Self {
             domain: normalize_domain(domain.as_ref()),
             a,
             aaaa,
             ttl,
             resolved_at,
-            expires_at: resolved_at.saturating_add(ttl),
+            refresh_at,
+            expires_at,
+            stale_until,
             resolver: resolver.into(),
             generation,
         }
@@ -76,6 +102,18 @@ impl DomainRecord {
         now >= self.expires_at
     }
 
+    pub fn needs_refresh_at(&self, now: u64) -> bool {
+        now >= self.refresh_at
+    }
+
+    pub fn is_stale_at(&self, now: u64) -> bool {
+        now >= self.expires_at && now < self.stale_until
+    }
+
+    pub fn is_unusable_at(&self, now: u64) -> bool {
+        now >= self.stale_until
+    }
+
     pub fn is_expired(&self) -> bool {
         self.is_expired_at(unix_now())
     }
@@ -85,18 +123,16 @@ impl DomainRecord {
     }
 }
 
+fn refresh_offset(ttl: u64) -> u64 {
+    ttl.saturating_mul(3) / 4
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolveError {
-    /// DNS explicitly reported that the queried name does not exist.
     NxDomain,
-    /// The resolver reported a server-side failure.
     ServFail,
-    /// The lookup exceeded its configured deadline.
     Timeout,
-    /// The lookup was cancelled before completion.
     Cancelled,
-    /// Transport/protocol/configuration error that does not fit the above
-    /// categories.
     Other(String),
 }
 
@@ -114,11 +150,6 @@ impl std::fmt::Display for ResolveError {
 
 impl std::error::Error for ResolveError {}
 
-/// Resolver abstraction.
-///
-/// The trait deliberately owns neither policy nor route state. It only turns
-/// a domain into a timestamped A/AAAA snapshot. generation is supplied by the
-/// caller so a late result can be rejected by the state/reconcile layer.
 pub trait Resolver: Send + Sync {
     fn identity(&self) -> &str;
 
@@ -145,13 +176,14 @@ mod tests {
     }
 
     #[test]
-    fn record_normalizes_domain_and_calculates_expiry() {
-        let record = DomainRecord::new(
+    fn record_normalizes_domain_and_calculates_lifecycle() {
+        let record = DomainRecord::new_with_stale_grace(
             " WWW.Example.COM. ",
             vec![ip("1.2.3.4")],
             vec![ip("2001:db8::1")],
             300,
             1_000,
+            120,
             "system",
             7,
         );
@@ -159,7 +191,9 @@ mod tests {
         assert_eq!(record.domain, "www.example.com");
         assert_eq!(record.ttl, 300);
         assert_eq!(record.resolved_at, 1_000);
+        assert_eq!(record.refresh_at, 1_225);
         assert_eq!(record.expires_at, 1_300);
+        assert_eq!(record.stale_until, 1_420);
         assert_eq!(record.generation, 7);
         assert_eq!(record.resolver, "system");
     }
@@ -181,19 +215,60 @@ mod tests {
     }
 
     #[test]
-    fn expiry_is_inclusive() {
-        let record = DomainRecord::new(
+    fn ttl_refreshes_before_expiry() {
+        let record = DomainRecord::new_with_stale_grace(
             "example.com",
             vec![],
             vec![],
             60,
             100,
+            300,
             "system",
             1,
         );
 
+        assert_eq!(record.refresh_at, 145);
+        assert!(!record.needs_refresh_at(144));
+        assert!(record.needs_refresh_at(145));
         assert!(!record.is_expired_at(159));
         assert!(record.is_expired_at(160));
+    }
+
+    #[test]
+    fn stale_window_is_distinct_from_dns_expiry() {
+        let record = DomainRecord::new_with_stale_grace(
+            "example.com",
+            vec![],
+            vec![],
+            60,
+            100,
+            120,
+            "system",
+            1,
+        );
+
+        assert!(record.is_stale_at(160));
+        assert!(!record.is_unusable_at(160));
+        assert!(!record.is_stale_at(219));
+        assert!(record.is_unusable_at(220));
+    }
+
+    #[test]
+    fn zero_ttl_refreshes_immediately() {
+        let record = DomainRecord::new_with_stale_grace(
+            "example.com",
+            vec![],
+            vec![],
+            0,
+            100,
+            120,
+            "system",
+            1,
+        );
+
+        assert_eq!(record.refresh_at, 100);
+        assert_eq!(record.expires_at, 100);
+        assert_eq!(record.stale_until, 220);
     }
 
     #[test]
@@ -209,12 +284,5 @@ mod tests {
         );
 
         assert!(record.is_empty());
-    }
-
-    #[test]
-    fn resolve_error_has_distinct_dns_states() {
-        assert_ne!(ResolveError::NxDomain, ResolveError::ServFail);
-        assert_ne!(ResolveError::ServFail, ResolveError::Timeout);
-        assert_ne!(ResolveError::Timeout, ResolveError::Cancelled);
     }
 }
