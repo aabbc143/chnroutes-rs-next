@@ -38,17 +38,11 @@ impl std::error::Error for RouteBackendError {}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct RouteBackendCapabilities {
-    /// Whether the backend can directly manipulate IPv4 routes.
     pub ipv4: bool,
-    /// Whether the backend can directly manipulate IPv6 routes.
     pub ipv6: bool,
-    /// Whether the backend can represent a direct route.
     pub direct: bool,
-    /// Whether the backend can represent proxy routing itself.
     pub proxy: bool,
-    /// Whether the backend can decide routing automatically.
     pub auto: bool,
-    /// Whether the backend can enforce blocking itself.
     pub block: bool,
 }
 
@@ -81,51 +75,31 @@ impl RouteBackendCapabilities {
 
 /// The stable boundary between desired Domain Routing state and an actual
 /// network enforcement mechanism.
-///
-/// A backend receives RouteIntent, not raw domains and not Windows-specific
-/// route parameters. This keeps gateway/interface/metric decisions inside the
-/// backend.
 pub trait RouteBackend: Send + Sync {
     fn name(&self) -> &str;
-
     fn capabilities(&self) -> RouteBackendCapabilities;
-
     fn apply<'a>(&'a self, intents: &'a [RouteIntent]) -> RouteBackendFuture<'a, Result<usize, RouteBackendError>>;
-
     fn remove<'a>(&'a self, intents: &'a [RouteIntent]) -> RouteBackendFuture<'a, Result<usize, RouteBackendError>>;
 }
 
 /// Adapter around the existing 0.5.x route engine.
-///
-/// The current route_op implementation is intentionally left unchanged.
-/// This adapter is the first compatibility boundary between the new Domain
-/// architecture and the existing Windows route implementation.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SystemRouteBackend;
 
 impl SystemRouteBackend {
-    pub const fn new() -> Self {
-        Self
-    }
+    pub const fn new() -> Self { Self }
 
-    fn validate_intents(
-        &self,
-        intents: &[RouteIntent],
-    ) -> Result<(), RouteBackendError> {
+    fn validate_intents(&self, intents: &[RouteIntent]) -> Result<(), RouteBackendError> {
         let capabilities = self.capabilities();
 
         for intent in intents {
             if !capabilities.supports(intent) {
                 match intent.destination {
                     ipnet::IpNet::V4(ip) if !capabilities.ipv4 => {
-                        return Err(RouteBackendError::UnsupportedAddressFamily(
-                            ip.addr(),
-                        ));
+                        return Err(RouteBackendError::UnsupportedAddressFamily(IpAddr::V4(ip.addr())));
                     }
                     ipnet::IpNet::V6(ip) if !capabilities.ipv6 => {
-                        return Err(RouteBackendError::UnsupportedAddressFamily(
-                            ip.addr(),
-                        ));
+                        return Err(RouteBackendError::UnsupportedAddressFamily(IpAddr::V6(ip.addr())));
                     }
                     _ => return Err(RouteBackendError::UnsupportedAction(intent.action)),
                 }
@@ -141,9 +115,7 @@ impl SystemRouteBackend {
 }
 
 impl RouteBackend for SystemRouteBackend {
-    fn name(&self) -> &str {
-        "system-route"
-    }
+    fn name(&self) -> &str { "system-route" }
 
     fn capabilities(&self) -> RouteBackendCapabilities {
         RouteBackendCapabilities::SYSTEM_ROUTE
@@ -235,41 +207,28 @@ mod tests {
     #[test]
     fn system_backend_accepts_ipv4_direct() {
         let backend = SystemRouteBackend::new();
-        assert!(backend.capabilities().supports(&intent(
-            "1.2.3.4",
-            RouteIntentAction::Direct
-        )));
+        assert!(backend.capabilities().supports(&intent("1.2.3.4", RouteIntentAction::Direct)));
     }
 
     #[test]
     fn system_backend_rejects_ipv6_until_backend_support_exists() {
         let backend = SystemRouteBackend::new();
-        let result = backend.validate_intents(&[intent(
-            "2001:db8::1",
-            RouteIntentAction::Direct,
-        )]);
+        let result = backend.validate_intents(&[intent("2001:db8::1", RouteIntentAction::Direct)]);
 
         assert_eq!(
             result,
-            Err(RouteBackendError::UnsupportedAddressFamily(
-                "2001:db8::1".parse().unwrap()
-            ))
+            Err(RouteBackendError::UnsupportedAddressFamily("2001:db8::1".parse().unwrap()))
         );
     }
 
     #[test]
     fn system_backend_rejects_proxy_action() {
         let backend = SystemRouteBackend::new();
-        let result = backend.validate_intents(&[intent(
-            "1.2.3.4",
-            RouteIntentAction::Proxy,
-        )]);
+        let result = backend.validate_intents(&[intent("1.2.3.4", RouteIntentAction::Proxy)]);
 
         assert_eq!(
             result,
-            Err(RouteBackendError::UnsupportedAction(
-                RouteIntentAction::Proxy
-            ))
+            Err(RouteBackendError::UnsupportedAction(RouteIntentAction::Proxy))
         );
     }
 }
