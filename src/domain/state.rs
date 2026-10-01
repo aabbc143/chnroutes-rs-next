@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use super::policy::normalize_domain;
 use super::{DomainPolicyAction, DomainRecord, RouteIntent, RouteIntentAction, RouteIntentOwner};
 
+pub const MIN_RESOLVE_RETRY_SECS: u64 = 5;
+pub const MAX_RESOLVE_RETRY_SECS: u64 = 300;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DomainStateEntry {
     pub domain: String,
@@ -14,6 +17,8 @@ pub struct DomainStateEntry {
     pub intents: Vec<RouteIntent>,
     pub last_error: Option<String>,
     pub resolution_in_flight: bool,
+    pub failure_count: u32,
+    pub next_retry_at: Option<u64>,
 }
 
 impl DomainStateEntry {
@@ -26,6 +31,8 @@ impl DomainStateEntry {
             intents: Vec::new(),
             last_error: None,
             resolution_in_flight: false,
+            failure_count: 0,
+            next_retry_at: None,
         }
     }
 
@@ -45,6 +52,8 @@ impl DomainStateEntry {
         self.generation = self.generation.wrapping_add(1);
         self.last_error = None;
         self.resolution_in_flight = false;
+        self.failure_count = 0;
+        self.next_retry_at = None;
         self.rebuild_intents();
         true
     }
@@ -67,14 +76,29 @@ impl DomainStateEntry {
         true
     }
 
-    pub fn reject_record(&mut self, generation: u64, error: ResolveStateError) -> bool {
+    pub fn reject_record(
+        &mut self,
+        generation: u64,
+        error: ResolveStateError,
+        now: u64,
+    ) -> bool {
         if generation != self.generation {
             return false;
         }
 
         self.last_error = Some(error.to_string());
         self.resolution_in_flight = false;
+        self.failure_count = self.failure_count.saturating_add(1);
+        self.next_retry_at = Some(
+            now.saturating_add(resolve_retry_delay_secs(self.failure_count)),
+        );
         true
+    }
+
+    pub fn can_retry_at(&self, now: u64) -> bool {
+        self.next_retry_at
+            .map(|retry_at| now >= retry_at)
+            .unwrap_or(true)
     }
 
     pub fn clear_record(&mut self) {
@@ -185,7 +209,11 @@ impl DomainState {
         let mut result: Vec<String> = self
             .entries
             .values()
-            .filter(|entry| entry.needs_refresh_at(now) && !entry.is_resolution_in_flight())
+            .filter(|entry| {
+                entry.needs_refresh_at(now)
+                    && !entry.is_resolution_in_flight()
+                    && entry.can_retry_at(now)
+            })
             .map(|entry| entry.domain.clone())
             .collect();
 
@@ -196,6 +224,13 @@ impl DomainState {
     pub fn entries(&self) -> impl Iterator<Item = &DomainStateEntry> {
         self.entries.values()
     }
+}
+
+fn resolve_retry_delay_secs(failure_count: u32) -> u64 {
+    let shift = failure_count.saturating_sub(1).min(63);
+    MIN_RESOLVE_RETRY_SECS
+        .saturating_mul(1_u64 << shift)
+        .min(MAX_RESOLVE_RETRY_SECS)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -305,8 +340,48 @@ mod tests {
         assert!(state.get("example.com").unwrap().is_resolution_in_flight());
 
         let entry = state.get_mut("example.com").unwrap();
-        assert!(entry.reject_record(1, ResolveStateError::Timeout));
-        assert_eq!(state.domains_needing_refresh(1_000), vec!["example.com".to_string()]);
+        assert!(entry.reject_record(1, ResolveStateError::Timeout, 1_000));
+        assert!(state.domains_needing_refresh(1_000).is_empty());
+        assert!(state.domains_needing_refresh(1_004).is_empty());
+        assert_eq!(state.domains_needing_refresh(1_005), vec!["example.com".to_string()]);
+    }
+
+    #[test]
+    fn resolution_failure_uses_exponential_backoff_with_cap() {
+        let mut entry = DomainStateEntry::new("example.com", DomainPolicyAction::Direct);
+        assert_eq!(entry.begin_resolution(), 1);
+
+        let expected = [5_u64, 10, 20, 40, 80, 160, 300, 300];
+        let mut now = 1_000_u64;
+        for (index, delay) in expected.into_iter().enumerate() {
+            assert!(entry.reject_record(
+                (index as u64) + 1,
+                ResolveStateError::Timeout,
+                now,
+            ) || index > 0);
+            assert_eq!(entry.next_retry_at, Some(now + delay));
+            now += delay;
+            if index + 1 < expected.len() {
+                assert_eq!(entry.begin_resolution(), (index as u64) + 2);
+            }
+        }
+
+        assert_eq!(entry.failure_count, 8);
+        assert_eq!(MAX_RESOLVE_RETRY_SECS, 300);
+    }
+
+    #[test]
+    fn successful_resolution_resets_failure_backoff() {
+        let mut entry = DomainStateEntry::new("example.com", DomainPolicyAction::Direct);
+        assert_eq!(entry.begin_resolution(), 1);
+        assert!(entry.reject_record(1, ResolveStateError::ServFail, 1_000));
+        assert_eq!(entry.failure_count, 1);
+        assert_eq!(entry.next_retry_at, Some(1_005));
+
+        assert_eq!(entry.begin_resolution(), 2);
+        assert!(entry.accept_record(record("example.com", 2)));
+        assert_eq!(entry.failure_count, 0);
+        assert_eq!(entry.next_retry_at, None);
     }
 
     #[test]
