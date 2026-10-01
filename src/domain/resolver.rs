@@ -141,6 +141,7 @@ impl std::fmt::Display for ResolveError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NxDomain => write!(f, "NXDOMAIN"),
+            Self::NoData => write!(f, "NODATA"),
             Self::ServFail => write!(f, "SERVFAIL"),
             Self::Timeout => write!(f, "DNS resolution timed out"),
             Self::Cancelled => write!(f, "DNS resolution cancelled"),
@@ -159,6 +160,100 @@ pub trait Resolver: Send + Sync {
         domain: &'a str,
         generation: u64,
     ) -> ResolverFuture<'a, Result<DomainRecord, ResolveError>>;
+}
+
+
+/// Resolver implementation backed by the operating system's DNS resolver.
+///
+/// The platform call is blocking, so the async adapter executes it on Tokio's
+/// blocking pool instead of blocking the async worker thread.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SystemDnsResolver;
+
+impl Resolver for SystemDnsResolver {
+    fn identity(&self) -> &str {
+        "system"
+    }
+
+    fn resolve<'a>(
+        &'a self,
+        domain: &'a str,
+        generation: u64,
+    ) -> ResolverFuture<'a, Result<DomainRecord, ResolveError>> {
+        let domain = domain.to_owned();
+
+        Box::pin(async move {
+            tokio::task::spawn_blocking(move || resolve_system(&domain, generation))
+                .await
+                .map_err(|error| ResolveError::Other(format!("DNS worker failed: {error}")))?
+        })
+    }
+}
+
+fn resolve_system(domain: &str, generation: u64) -> Result<DomainRecord, ResolveError> {
+    const A: u16 = 1;
+    const AAAA: u16 = 28;
+
+    let a = system_resolver::lookup(domain, A).map_err(classify_system_error)?;
+    let aaaa = system_resolver::lookup(domain, AAAA).map_err(classify_system_error)?;
+
+    let a_ips = decode_addresses(&a, A)?;
+    let aaaa_ips = decode_addresses(&aaaa, AAAA)?;
+
+    if a_ips.is_empty() && aaaa_ips.is_empty() {
+        return Err(ResolveError::NoData);
+    }
+
+    let ttl = a
+        .iter()
+        .chain(aaaa.iter())
+        .map(|record| record.ttl.as_secs())
+        .min()
+        .unwrap_or(0);
+
+    Ok(DomainRecord::from_now(
+        domain,
+        a_ips,
+        aaaa_ips,
+        ttl,
+        "system",
+        generation,
+    ))
+}
+
+fn decode_addresses(
+    records: &[system_resolver::Record],
+    rtype: u16,
+) -> Result<Vec<IpAddr>, ResolveError> {
+    records
+        .iter()
+        .filter(|record| record.rtype == rtype)
+        .map(|record| {
+            match rtype {
+                1 if record.rdata.len() == 4 => {
+                    Ok(IpAddr::from([record.rdata[0], record.rdata[1], record.rdata[2], record.rdata[3]]))
+                }
+                28 if record.rdata.len() == 16 => {
+                    let mut bytes = [0_u8; 16];
+                    bytes.copy_from_slice(&record.rdata);
+                    Ok(IpAddr::from(bytes))
+                }
+                _ => Err(ResolveError::Other(format!(
+                    "invalid DNS RDATA for type {rtype}: {} bytes",
+                    record.rdata.len()
+                ))),
+            }
+        })
+        .collect()
+}
+
+fn classify_system_error(error: system_resolver::Error) -> ResolveError {
+    match error {
+        system_resolver::Error::NameDoesNotExist => ResolveError::NxDomain,
+        system_resolver::Error::NoResponse => ResolveError::Timeout,
+        system_resolver::Error::ResponseCode { rcode: 2 } => ResolveError::ServFail,
+        other => ResolveError::Other(other.to_string()),
+    }
 }
 
 fn unix_now() -> u64 {
