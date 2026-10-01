@@ -164,7 +164,7 @@ impl DomainPolicy {
                     // For equal priority, prefer a more specific matcher.
                     .then_with(|| left.matcher.specificity().cmp(&right.matcher.specificity()))
                     // Finally make the result independent of Vec insertion order.
-                    .then_with(|| right.id.cmp(&left.id))
+                    .then_with(|| left.id.cmp(&right.id))
             });
 
         match matched {
