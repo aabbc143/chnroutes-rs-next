@@ -12,7 +12,6 @@ pub mod reconcile;
 pub mod resolver;
 pub mod runtime;
 pub mod state;
-pub use resolver::SystemDnsResolver;
 
 pub use backend::{
     RouteBackend, RouteBackendCapabilities, RouteBackendError, RouteBackendFuture,
