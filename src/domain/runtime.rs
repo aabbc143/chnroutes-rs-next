@@ -151,7 +151,7 @@ where
                 // such as timeout/SERVFAIL retain the previous record so a
                 // temporary resolver failure does not immediately tear down
                 // otherwise-valid routing state.
-                if matches!(error, ResolveError::NxDomain) {
+                if matches!(error, ResolveError::NxDomain | ResolveError::NoData) {
                     entry.clear_record();
                 }
 
@@ -198,6 +198,7 @@ impl From<&ResolveError> for super::state::ResolveStateError {
     fn from(error: &ResolveError) -> Self {
         match error {
             ResolveError::NxDomain => Self::NxDomain,
+            ResolveError::NoData => Self::NoData,
             ResolveError::ServFail => Self::ServFail,
             ResolveError::Timeout => Self::Timeout,
             ResolveError::Cancelled => Self::Cancelled,
