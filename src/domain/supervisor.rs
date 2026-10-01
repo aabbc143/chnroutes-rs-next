@@ -118,6 +118,7 @@ mod tests {
         assert!(entry.accept_record(DomainRecord::new_with_stale_grace("a.example", vec!["1.2.3.4".parse().unwrap()], vec![], 60, 100, 120, "seed", generation)));
         let report = supervisor.tick(160).await.unwrap();
         assert_eq!(report.dns_errors.len(), 1);
-        assert!(report.reconcile.is_empty());
+        assert_eq!(report.reconcile.apply.len(), 1);
+        assert_eq!(supervisor.runtime().desired_intents(160).len(), 1);
     }
 }
