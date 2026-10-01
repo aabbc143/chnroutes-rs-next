@@ -1,6 +1,7 @@
 use super::{
     DomainPolicy, DomainPolicyAction, DomainState, ResolveError, Resolver, RouteIntent,
 };
+use super::policy::normalize_domain;
 
 /// Result of a domain resolution attempt.
 ///
@@ -16,7 +17,8 @@ pub enum ResolveOutcome {
 /// A resolution request allocated by DomainState before the async DNS work.
 ///
 /// The generation is the concurrency fence: only a result carrying the
-/// current generation may commit into DomainState.
+/// current generation may commit into DomainState. The action is also retained
+/// as a policy snapshot so a result can never commit under a different action.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolutionRequest {
     pub domain: String,
@@ -51,8 +53,22 @@ where
         &self.policy
     }
 
-    pub fn policy_mut(&mut self) -> &mut DomainPolicy {
-        &mut self.policy
+    /// Replace the policy and immediately re-evaluate all domains already
+    /// present in runtime state.
+    ///
+    /// If a domain's effective action changes, DomainState advances its
+    /// generation and rebuilds its intents. This both invalidates in-flight
+    /// DNS results from the previous action and avoids an unnecessary DNS
+    /// lookup when the existing DNS record is still usable.
+    pub fn replace_policy(&mut self, policy: DomainPolicy) {
+        self.policy = policy;
+
+        let domains: Vec<String> = self.state.entries().map(|entry| entry.domain.clone()).collect();
+
+        for domain in domains {
+            let action = self.policy.evaluate(&domain).action;
+            self.state.upsert(domain, action);
+        }
     }
 
     pub fn resolver(&self) -> &R {
@@ -76,7 +92,7 @@ where
     /// This separation is intentional: callers can issue multiple DNS
     /// requests concurrently and later commit results in any completion order.
     pub fn begin_resolution(&mut self, domain: &str) -> ResolutionRequest {
-        let normalized = super::policy::normalize_domain(domain);
+        let normalized = normalize_domain(domain);
         let action = self.policy.evaluate(&normalized).action;
         let generation = self
             .state
@@ -96,10 +112,18 @@ where
         request: &ResolutionRequest,
         result: Result<super::DomainRecord, ResolveError>,
     ) -> Result<ResolveOutcome, ResolveError> {
-        let entry = self
-            .state
-            .get_mut(&request.domain)
-            .expect("state entry must exist after begin_resolution");
+        let Some(entry) = self.state.get_mut(&request.domain) else {
+            // The domain may have been removed while DNS work was in flight.
+            // The result is no longer owned by the runtime and must be ignored.
+            return Ok(ResolveOutcome::Stale);
+        };
+
+        // Generation is the primary concurrency fence. Action is a second
+        // consistency check so a malformed/manual state mutation cannot let a
+        // result commit under a different policy action.
+        if entry.generation != request.generation || entry.action != request.action {
+            return Ok(ResolveOutcome::Stale);
+        }
 
         match result {
             Ok(record) => {
@@ -110,11 +134,23 @@ where
                 }
             }
             Err(error) => {
-                entry.reject_record(
+                // NXDOMAIN means the old DNS answer is no longer valid and
+                // must not continue producing route intents. Transient errors
+                // such as timeout/SERVFAIL retain the previous record so a
+                // temporary resolver failure does not immediately tear down
+                // otherwise-valid routing state.
+                if matches!(error, ResolveError::NxDomain) {
+                    entry.clear_record();
+                }
+
+                if entry.reject_record(
                     request.generation,
                     super::state::ResolveStateError::from(&error),
-                );
-                Err(error)
+                ) {
+                    Err(error)
+                } else {
+                    Ok(ResolveOutcome::Stale)
+                }
             }
         }
     }
@@ -265,7 +301,10 @@ mod tests {
         let outcome = runtime.resolve_domain("example.com").await.unwrap();
 
         assert_eq!(outcome, ResolveOutcome::Accepted);
-        assert_eq!(runtime.state().get("example.com").unwrap().action, DomainPolicyAction::Direct);
+        assert_eq!(
+            runtime.state().get("example.com").unwrap().action,
+            DomainPolicyAction::Direct
+        );
         assert_eq!(runtime.state().get("example.com").unwrap().intents.len(), 2);
     }
 
@@ -297,5 +336,157 @@ mod tests {
             runtime.state().get("example.com").unwrap().last_error.as_deref(),
             Some("DNS resolution timed out")
         );
+    }
+
+    #[test]
+    fn removed_domain_rejects_late_success_as_stale() {
+        let policy = DomainPolicy::new(DomainPolicyAction::Direct);
+        let mut runtime = DomainRuntime::new(policy, TestResolver);
+
+        let request = runtime.begin_resolution("example.com");
+        let record = DomainRecord::new(
+            "example.com",
+            vec!["1.2.3.4".parse::<IpAddr>().unwrap()],
+            vec![],
+            60,
+            100,
+            "test",
+            request.generation,
+        );
+
+        assert!(runtime.remove_domain("example.com").is_some());
+        assert_eq!(
+            runtime.finish_resolution(&request, Ok(record)).unwrap(),
+            ResolveOutcome::Stale
+        );
+    }
+
+    #[test]
+    fn removed_domain_rejects_late_error_as_stale() {
+        let policy = DomainPolicy::new(DomainPolicyAction::Direct);
+        let mut runtime = DomainRuntime::new(policy, TestResolver);
+
+        let request = runtime.begin_resolution("example.com");
+
+        assert!(runtime.remove_domain("example.com").is_some());
+        assert_eq!(
+            runtime
+                .finish_resolution(&request, Err(ResolveError::Timeout))
+                .unwrap(),
+            ResolveOutcome::Stale
+        );
+    }
+
+    #[test]
+    fn stale_resolution_error_is_discarded() {
+        let policy = DomainPolicy::new(DomainPolicyAction::Direct);
+        let mut runtime = DomainRuntime::new(policy, TestResolver);
+
+        let first = runtime.begin_resolution("example.com");
+        let second = runtime.begin_resolution("example.com");
+
+        assert_eq!(
+            runtime
+                .finish_resolution(&first, Err(ResolveError::Timeout))
+                .unwrap(),
+            ResolveOutcome::Stale
+        );
+        assert!(runtime.state().get("example.com").unwrap().last_error.is_none());
+
+        let record = DomainRecord::new(
+            "example.com",
+            vec!["2.2.2.2".parse::<IpAddr>().unwrap()],
+            vec![],
+            60,
+            100,
+            "test",
+            second.generation,
+        );
+        assert_eq!(
+            runtime.finish_resolution(&second, Ok(record)).unwrap(),
+            ResolveOutcome::Accepted
+        );
+    }
+
+    #[test]
+    fn policy_replacement_invalidates_inflight_result_when_action_changes() {
+        let mut policy = DomainPolicy::new(DomainPolicyAction::Direct);
+        policy.add_rule(super::super::policy::DomainRule::new(
+            "direct-example",
+            super::super::policy::DomainRuleMatcher::Exact("example.com".into()),
+            DomainPolicyAction::Direct,
+            100,
+            super::super::policy::DomainRuleSource::User,
+        ));
+
+        let mut runtime = DomainRuntime::new(policy, TestResolver);
+        let request = runtime.begin_resolution("example.com");
+
+        let mut new_policy = DomainPolicy::new(DomainPolicyAction::Direct);
+        new_policy.add_rule(super::super::policy::DomainRule::new(
+            "proxy-example",
+            super::super::policy::DomainRuleMatcher::Exact("example.com".into()),
+            DomainPolicyAction::Proxy,
+            100,
+            super::super::policy::DomainRuleSource::User,
+        ));
+        runtime.replace_policy(new_policy);
+
+        assert_eq!(
+            runtime.finish_resolution(
+                &request,
+                Ok(DomainRecord::new(
+                    "example.com",
+                    vec!["1.2.3.4".parse::<IpAddr>().unwrap()],
+                    vec![],
+                    60,
+                    100,
+                    "test",
+                    request.generation,
+                )),
+            )
+            .unwrap(),
+            ResolveOutcome::Stale
+        );
+
+        let entry = runtime.state().get("example.com").unwrap();
+        assert_eq!(entry.action, DomainPolicyAction::Proxy);
+        assert_eq!(entry.generation, request.generation + 1);
+        assert!(entry.record.is_none());
+        assert!(entry.intents.is_empty());
+    }
+
+    #[test]
+    fn nxdomain_clears_previous_record_and_intents() {
+        let policy = DomainPolicy::new(DomainPolicyAction::Direct);
+        let mut runtime = DomainRuntime::new(policy, TestResolver);
+
+        let first = runtime.begin_resolution("example.com");
+        let record = DomainRecord::new(
+            "example.com",
+            vec!["1.2.3.4".parse::<IpAddr>().unwrap()],
+            vec![],
+            60,
+            100,
+            "test",
+            first.generation,
+        );
+        assert_eq!(
+            runtime.finish_resolution(&first, Ok(record)).unwrap(),
+            ResolveOutcome::Accepted
+        );
+
+        let second = runtime.begin_resolution("example.com");
+        assert_eq!(
+            runtime
+                .finish_resolution(&second, Err(ResolveError::NxDomain))
+                .unwrap_err(),
+            ResolveError::NxDomain
+        );
+
+        let entry = runtime.state().get("example.com").unwrap();
+        assert!(entry.record.is_none());
+        assert!(entry.intents.is_empty());
+        assert_eq!(entry.last_error.as_deref(), Some("NXDOMAIN"));
     }
 }
