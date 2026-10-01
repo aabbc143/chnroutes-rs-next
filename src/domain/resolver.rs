@@ -194,21 +194,21 @@ fn resolve_system(domain: &str, generation: u64) -> Result<DomainRecord, Resolve
     const A: u16 = 1;
     const AAAA: u16 = 28;
 
-    let a = lookup_family(domain, A);
-    let aaaa = lookup_family(domain, AAAA);
+    let a = resolve_family(domain, A);
+    let aaaa = resolve_family(domain, AAAA);
 
     let mut a_ips = Vec::new();
     let mut aaaa_ips = Vec::new();
     let mut ttls = Vec::new();
 
-    if let Ok(records) = &a {
-        a_ips = decode_addresses(records, A)?;
-        ttls.extend(records.iter().map(|record| record.ttl.as_secs()));
+    if let Ok((ips, family_ttls)) = &a {
+        a_ips = ips.clone();
+        ttls.extend(family_ttls.iter().copied());
     }
 
-    if let Ok(records) = &aaaa {
-        aaaa_ips = decode_addresses(records, AAAA)?;
-        ttls.extend(records.iter().map(|record| record.ttl.as_secs()));
+    if let Ok((ips, family_ttls)) = &aaaa {
+        aaaa_ips = ips.clone();
+        ttls.extend(family_ttls.iter().copied());
     }
 
     // A valid answer from either family is sufficient. A failure in the
@@ -229,16 +229,20 @@ fn resolve_system(domain: &str, generation: u64) -> Result<DomainRecord, Resolve
     Err(merge_family_errors(a, aaaa))
 }
 
-fn lookup_family(
+fn resolve_family(
     domain: &str,
     rtype: u16,
-) -> Result<Vec<system_resolver::Record>, ResolveError> {
-    system_resolver::lookup(domain, rtype).map_err(classify_system_error)
+) -> Result<(Vec<IpAddr>, Vec<u64>), ResolveError> {
+    let records = system_resolver::lookup(domain, rtype).map_err(classify_system_error)?;
+    let ips = decode_addresses(&records, rtype)?;
+    let ttls = records.iter().map(|record| record.ttl.as_secs()).collect();
+
+    Ok((ips, ttls))
 }
 
 fn merge_family_errors(
-    a: Result<Vec<system_resolver::Record>, ResolveError>,
-    aaaa: Result<Vec<system_resolver::Record>, ResolveError>,
+    a: Result<(Vec<IpAddr>, Vec<u64>), ResolveError>,
+    aaaa: Result<(Vec<IpAddr>, Vec<u64>), ResolveError>,
 ) -> ResolveError {
     match (a, aaaa) {
         (Ok(_), Ok(_)) => ResolveError::NoData,
