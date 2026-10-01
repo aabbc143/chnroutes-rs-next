@@ -479,7 +479,7 @@ mod tests {
 
         assert!(record.is_stale_at(160));
         assert!(!record.is_unusable_at(160));
-        assert!(!record.is_stale_at(219));
+        assert!(record.is_stale_at(219));
         assert!(record.is_unusable_at(220));
     }
 
