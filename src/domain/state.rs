@@ -13,6 +13,7 @@ pub struct DomainStateEntry {
     pub record: Option<DomainRecord>,
     pub intents: Vec<RouteIntent>,
     pub last_error: Option<String>,
+    pub resolution_in_flight: bool,
 }
 
 impl DomainStateEntry {
@@ -24,12 +25,14 @@ impl DomainStateEntry {
             record: None,
             intents: Vec::new(),
             last_error: None,
+            resolution_in_flight: false,
         }
     }
 
     pub fn begin_resolution(&mut self) -> u64 {
         self.generation = self.generation.wrapping_add(1);
         self.last_error = None;
+        self.resolution_in_flight = true;
         self.generation
     }
 
@@ -41,8 +44,13 @@ impl DomainStateEntry {
         self.action = action;
         self.generation = self.generation.wrapping_add(1);
         self.last_error = None;
+        self.resolution_in_flight = false;
         self.rebuild_intents();
         true
+    }
+
+    pub fn is_resolution_in_flight(&self) -> bool {
+        self.resolution_in_flight
     }
 
     pub fn accept_record(&mut self, record: DomainRecord) -> bool {
@@ -54,6 +62,7 @@ impl DomainStateEntry {
 
         self.record = Some(record);
         self.last_error = None;
+        self.resolution_in_flight = false;
         self.rebuild_intents();
         true
     }
@@ -64,6 +73,7 @@ impl DomainStateEntry {
         }
 
         self.last_error = Some(error.to_string());
+        self.resolution_in_flight = false;
         true
     }
 
@@ -175,7 +185,7 @@ impl DomainState {
         let mut result: Vec<String> = self
             .entries
             .values()
-            .filter(|entry| entry.needs_refresh_at(now))
+            .filter(|entry| entry.needs_refresh_at(now) && !entry.is_resolution_in_flight())
             .map(|entry| entry.domain.clone())
             .collect();
 
@@ -283,6 +293,20 @@ mod tests {
         assert!(entry.is_unusable_at(1_200));
         assert_eq!(state.desired_intents(1_150).len(), 2);
         assert!(state.desired_intents(1_200).is_empty());
+    }
+
+    #[test]
+    fn refresh_is_not_scheduled_twice_while_resolution_is_in_flight() {
+        let mut state = DomainState::new();
+        let entry = state.upsert("example.com", DomainPolicyAction::Direct);
+        assert_eq!(entry.begin_resolution(), 1);
+
+        assert!(state.domains_needing_refresh(1_000).is_empty());
+        assert!(state.get("example.com").unwrap().is_resolution_in_flight());
+
+        let entry = state.get_mut("example.com").unwrap();
+        assert!(entry.reject_record(1, ResolveStateError::Timeout));
+        assert_eq!(state.domains_needing_refresh(1_000), vec!["example.com".to_string()]);
     }
 
     #[test]
