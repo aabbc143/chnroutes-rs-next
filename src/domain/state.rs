@@ -343,7 +343,10 @@ mod tests {
         assert!(entry.reject_record(1, ResolveStateError::Timeout, 1_000));
         assert!(state.domains_needing_refresh(1_000).is_empty());
         assert!(state.domains_needing_refresh(1_004).is_empty());
-        assert_eq!(state.domains_needing_refresh(1_005), vec!["example.com".to_string()]);
+        assert_eq!(
+            state.domains_needing_refresh(1_005),
+            vec!["example.com".to_string()]
+        );
     }
 
     #[test]
@@ -358,7 +361,7 @@ mod tests {
                 (index as u64) + 1,
                 ResolveStateError::Timeout,
                 now,
-            ) || index > 0);
+            ));
             assert_eq!(entry.next_retry_at, Some(now + delay));
             now += delay;
             if index + 1 < expected.len() {
