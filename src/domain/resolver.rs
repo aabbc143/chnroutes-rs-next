@@ -347,8 +347,8 @@ mod tests {
 
     #[test]
     fn both_families_with_no_addresses_are_nodata() {
-        let a_result: Result<Vec<system_resolver::Record>, ResolveError> = Ok(Vec::new());
-        let aaaa_result: Result<Vec<system_resolver::Record>, ResolveError> = Ok(Vec::new());
+        let a_result: Result<(Vec<IpAddr>, Vec<u64>), ResolveError> = Ok((Vec::new(), Vec::new()));
+        let aaaa_result: Result<(Vec<IpAddr>, Vec<u64>), ResolveError> = Ok((Vec::new(), Vec::new()));
 
         assert_eq!(
             merge_family_errors(a_result, aaaa_result),
@@ -358,9 +358,9 @@ mod tests {
 
     #[test]
     fn transient_failure_is_preserved_when_other_family_has_no_data() {
-        let a_result: Result<Vec<system_resolver::Record>, ResolveError> =
+        let a_result: Result<(Vec<IpAddr>, Vec<u64>), ResolveError> =
             Err(ResolveError::Timeout);
-        let aaaa_result: Result<Vec<system_resolver::Record>, ResolveError> = Ok(Vec::new());
+        let aaaa_result: Result<(Vec<IpAddr>, Vec<u64>), ResolveError> = Ok((Vec::new(), Vec::new()));
 
         assert_eq!(
             merge_family_errors(a_result, aaaa_result),
@@ -370,7 +370,7 @@ mod tests {
 
     #[test]
     fn nxdomain_wins_when_no_family_produces_an_address() {
-        let a_result: Result<Vec<system_resolver::Record>, ResolveError> =
+        let a_result: Result<(Vec<IpAddr>, Vec<u64>), ResolveError> =
             Err(ResolveError::NxDomain);
         let aaaa_result: Result<Vec<system_resolver::Record>, ResolveError> =
             Ok(Vec::new());
