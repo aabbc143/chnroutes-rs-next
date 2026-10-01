@@ -72,6 +72,8 @@ impl DomainStateEntry {
         self.record = Some(record);
         self.last_error = None;
         self.resolution_in_flight = false;
+        self.failure_count = 0;
+        self.next_retry_at = None;
         self.rebuild_intents();
         true
     }
