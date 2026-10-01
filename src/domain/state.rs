@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::{DomainPolicyAction, DomainRecord, RouteIntent, RouteIntentAction, RouteIntentOwner};
 use super::policy::normalize_domain;
+use super::{DomainPolicyAction, DomainRecord, RouteIntent, RouteIntentAction, RouteIntentOwner};
 
 /// Runtime state belonging to one domain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,12 +34,34 @@ impl DomainStateEntry {
         self.generation
     }
 
-    /// Accept a resolver result only if it belongs to the current generation.
+    /// Change the effective policy action for this domain.
     ///
-    /// This prevents a slow DNS response from an older request from
-    /// overwriting a newer result.
+    /// The generation is advanced because an in-flight resolver result belongs
+    /// to the previous policy generation and must not be allowed to commit
+    /// afterwards. A still-valid DNS record can be reused immediately; only
+    /// the routing intent needs to be rebuilt under the new action.
+    pub fn set_action(&mut self, action: DomainPolicyAction) -> bool {
+        if self.action == action {
+            return false;
+        }
+
+        self.action = action;
+        self.generation = self.generation.wrapping_add(1);
+        self.last_error = None;
+        self.rebuild_intents();
+        true
+    }
+
+    /// Accept a resolver result only if it belongs to the current generation
+    /// and domain.
+    ///
+    /// This prevents a slow DNS response from an older request, or a broken
+    /// resolver implementation returning another name, from overwriting the
+    /// current runtime state.
     pub fn accept_record(&mut self, record: DomainRecord) -> bool {
-        if record.generation != self.generation {
+        if record.generation != self.generation
+            || normalize_domain(&record.domain) != self.domain
+        {
             return false;
         }
 
@@ -79,7 +101,7 @@ impl DomainStateEntry {
                 ip,
                 action,
                 RouteIntentOwner::Domain(self.domain.clone()),
-                record.generation,
+                self.generation,
                 record.expires_at,
             ));
         }
@@ -127,14 +149,7 @@ impl DomainState {
             .entry(domain.clone())
             .or_insert_with(|| DomainStateEntry::new(&domain, action));
 
-        if entry.action != action {
-            entry.action = action;
-            // A policy change invalidates intents produced under the previous
-            // action. Keep the DNS record as reusable input, but require a
-            // fresh resolution cycle before creating new intents.
-            entry.intents.clear();
-        }
-
+        entry.set_action(action);
         entry
     }
 
@@ -199,7 +214,6 @@ impl std::fmt::Display for ResolveStateError {
 
 impl std::error::Error for ResolveStateError {}
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,6 +243,7 @@ mod tests {
 
         assert_eq!(entry.record.as_ref().unwrap().generation, 2);
         assert_eq!(entry.intents.len(), 2);
+        assert_eq!(entry.intents[0].generation, 2);
     }
 
     #[test]
@@ -266,6 +281,37 @@ mod tests {
 
         assert!(entry.reject_record(second, ResolveStateError::ServFail));
         assert_eq!(entry.last_error.as_deref(), Some("SERVFAIL"));
+    }
+
+    #[test]
+    fn policy_change_invalidates_generation_and_rebuilds_existing_record() {
+        let mut entry = DomainStateEntry::new("example.com", DomainPolicyAction::Direct);
+        let generation = entry.begin_resolution();
+        assert!(entry.accept_record(record("example.com", generation)));
+
+        assert!(entry.set_action(DomainPolicyAction::Proxy));
+        assert_eq!(entry.generation, generation + 1);
+        assert_eq!(entry.action, DomainPolicyAction::Proxy);
+        assert_eq!(entry.record.as_ref().unwrap().generation, generation);
+        assert_eq!(entry.intents.len(), 2);
+        assert!(entry
+            .intents
+            .iter()
+            .all(|intent| intent.action == RouteIntentAction::Proxy));
+        assert!(entry
+            .intents
+            .iter()
+            .all(|intent| intent.generation == generation + 1));
+    }
+
+    #[test]
+    fn stale_record_for_wrong_domain_is_rejected() {
+        let mut entry = DomainStateEntry::new("example.com", DomainPolicyAction::Direct);
+        let generation = entry.begin_resolution();
+
+        assert!(!entry.accept_record(record("other.example", generation)));
+        assert!(entry.record.is_none());
+        assert!(entry.intents.is_empty());
     }
 
     #[test]
