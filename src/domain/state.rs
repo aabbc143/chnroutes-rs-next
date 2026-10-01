@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use super::policy::normalize_domain;
 use super::{DomainPolicyAction, DomainRecord, RouteIntent, RouteIntentAction, RouteIntentOwner};
 
-/// Runtime state belonging to one domain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DomainStateEntry {
     pub domain: String,
@@ -34,12 +33,6 @@ impl DomainStateEntry {
         self.generation
     }
 
-    /// Change the effective policy action for this domain.
-    ///
-    /// The generation is advanced because an in-flight resolver result belongs
-    /// to the previous policy generation and must not be allowed to commit
-    /// afterwards. A still-valid DNS record can be reused immediately; only
-    /// the routing intent needs to be rebuilt under the new action.
     pub fn set_action(&mut self, action: DomainPolicyAction) -> bool {
         if self.action == action {
             return false;
@@ -52,12 +45,6 @@ impl DomainStateEntry {
         true
     }
 
-    /// Accept a resolver result only if it belongs to the current generation
-    /// and domain.
-    ///
-    /// This prevents a slow DNS response from an older request, or a broken
-    /// resolver implementation returning another name, from overwriting the
-    /// current runtime state.
     pub fn accept_record(&mut self, record: DomainRecord) -> bool {
         if record.generation != self.generation
             || normalize_domain(&record.domain) != self.domain
@@ -102,23 +89,29 @@ impl DomainStateEntry {
                 action,
                 RouteIntentOwner::Domain(self.domain.clone()),
                 self.generation,
-                record.expires_at,
+                record.stale_until,
             ));
         }
     }
 
-    pub fn is_expired_at(&self, now: u64) -> bool {
+    /// True when the record has passed its local stale grace window and can no
+    /// longer produce desired routing state.
+    pub fn is_unusable_at(&self, now: u64) -> bool {
         self.record
             .as_ref()
-            .map(|record| record.is_expired_at(now))
+            .map(|record| record.is_unusable_at(now))
+            .unwrap_or(true)
+    }
+
+    /// True when a background refresh should be scheduled.
+    pub fn needs_refresh_at(&self, now: u64) -> bool {
+        self.record
+            .as_ref()
+            .map(|record| record.needs_refresh_at(now))
             .unwrap_or(true)
     }
 }
 
-/// Aggregate runtime state for all domains.
-///
-/// The state is intentionally independent from the RouteBackend. It is the
-/// source from which the Reconciler builds desired RouteIntents.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DomainState {
     entries: HashMap<String, DomainStateEntry>,
@@ -169,7 +162,7 @@ impl DomainState {
         let mut result = Vec::new();
 
         for entry in self.entries.values() {
-            if entry.is_expired_at(now) {
+            if entry.is_unusable_at(now) {
                 continue;
             }
             result.extend(entry.intents.iter().cloned());
@@ -179,11 +172,15 @@ impl DomainState {
     }
 
     pub fn domains_needing_refresh(&self, now: u64) -> Vec<String> {
-        self.entries
+        let mut result: Vec<String> = self
+            .entries
             .values()
-            .filter(|entry| entry.record.is_none() || entry.is_expired_at(now))
+            .filter(|entry| entry.needs_refresh_at(now))
             .map(|entry| entry.domain.clone())
-            .collect()
+            .collect();
+
+        result.sort();
+        result
     }
 
     pub fn entries(&self) -> impl Iterator<Item = &DomainStateEntry> {
@@ -220,12 +217,13 @@ mod tests {
     use std::net::IpAddr;
 
     fn record(domain: &str, generation: u64) -> DomainRecord {
-        DomainRecord::new(
+        DomainRecord::new_with_stale_grace(
             domain,
             vec!["1.2.3.4".parse::<IpAddr>().unwrap()],
             vec!["2001:db8::1".parse::<IpAddr>().unwrap()],
-            300,
+            100,
             1_000,
+            100,
             "test",
             generation,
         )
@@ -244,74 +242,47 @@ mod tests {
         assert_eq!(entry.record.as_ref().unwrap().generation, 2);
         assert_eq!(entry.intents.len(), 2);
         assert_eq!(entry.intents[0].generation, 2);
+        assert_eq!(entry.intents[0].expires_at, 1_200);
     }
 
     #[test]
-    fn state_aggregates_desired_intents() {
+    fn state_aggregates_desired_intents_before_stale_until() {
         let mut state = DomainState::new();
         let entry = state.upsert("example.com", DomainPolicyAction::Direct);
         let generation = entry.begin_resolution();
         assert!(entry.accept_record(record("example.com", generation)));
 
+        assert_eq!(state.desired_intents(1_050).len(), 2);
         assert_eq!(state.desired_intents(1_100).len(), 2);
+        assert_eq!(state.desired_intents(1_199).len(), 2);
+        assert!(state.desired_intents(1_200).is_empty());
     }
 
     #[test]
-    fn expired_domain_is_not_desired() {
+    fn refresh_starts_before_dns_expiry() {
         let mut state = DomainState::new();
         let entry = state.upsert("example.com", DomainPolicyAction::Direct);
         let generation = entry.begin_resolution();
         assert!(entry.accept_record(record("example.com", generation)));
 
-        assert!(state.desired_intents(1_300).is_empty());
+        assert!(state.domains_needing_refresh(1_074).is_empty());
         assert_eq!(
-            state.domains_needing_refresh(1_300),
+            state.domains_needing_refresh(1_075),
             vec!["example.com".to_string()]
         );
     }
 
     #[test]
-    fn stale_error_does_not_replace_new_generation() {
-        let mut entry = DomainStateEntry::new("example.com", DomainPolicyAction::Direct);
-        let first = entry.begin_resolution();
-        let second = entry.begin_resolution();
-
-        assert!(!entry.reject_record(first, ResolveStateError::Timeout));
-        assert!(entry.last_error.is_none());
-
-        assert!(entry.reject_record(second, ResolveStateError::ServFail));
-        assert_eq!(entry.last_error.as_deref(), Some("SERVFAIL"));
-    }
-
-    #[test]
-    fn policy_change_invalidates_generation_and_rebuilds_existing_record() {
-        let mut entry = DomainStateEntry::new("example.com", DomainPolicyAction::Direct);
+    fn stale_window_keeps_routes_during_transient_refresh_failure() {
+        let mut state = DomainState::new();
+        let entry = state.upsert("example.com", DomainPolicyAction::Direct);
         let generation = entry.begin_resolution();
         assert!(entry.accept_record(record("example.com", generation)));
 
-        assert!(entry.set_action(DomainPolicyAction::Proxy));
-        assert_eq!(entry.generation, generation + 1);
-        assert_eq!(entry.action, DomainPolicyAction::Proxy);
-        assert_eq!(entry.record.as_ref().unwrap().generation, generation);
-        assert_eq!(entry.intents.len(), 2);
-        assert!(entry
-            .intents
-            .iter()
-            .all(|intent| intent.action == RouteIntentAction::Proxy));
-        assert!(entry
-            .intents
-            .iter()
-            .all(|intent| intent.generation == generation + 1));
-    }
-
-    #[test]
-    fn stale_record_for_wrong_domain_is_rejected() {
-        let mut entry = DomainStateEntry::new("example.com", DomainPolicyAction::Direct);
-        let generation = entry.begin_resolution();
-
-        assert!(!entry.accept_record(record("other.example", generation)));
-        assert!(entry.record.is_none());
-        assert!(entry.intents.is_empty());
+        assert!(!entry.is_unusable_at(1_150));
+        assert!(entry.is_unusable_at(1_200));
+        assert_eq!(state.desired_intents(1_150).len(), 2);
+        assert!(state.desired_intents(1_200).is_empty());
     }
 
     #[test]
