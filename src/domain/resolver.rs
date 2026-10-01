@@ -130,6 +130,7 @@ fn refresh_offset(ttl: u64) -> u64 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolveError {
     NxDomain,
+    NoData,
     ServFail,
     Timeout,
     Cancelled,
